@@ -207,9 +207,13 @@ public class PipelineParamHandler {
         return typeExp.contains("Split_V01");
     }
 
+
     public boolean isGaps() {
-        return typeExp.contains("Gaps_V01");
+        
+        return typeExp.contains("HaveNoSurface_");
+
     }
+
 
     public String[] getImgNames() {
         return imgNames;

@@ -6,6 +6,7 @@ package io.github.rocsg.rsml;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.ImageStack;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.measure.ResultsTable;
@@ -24,10 +25,12 @@ import org.apache.commons.math3.ml.clustering.DoublePoint;
 import org.apache.commons.math3.ml.distance.DistanceMeasure;
 import org.scijava.vecmath.Point3d;
 import org.w3c.dom.Document;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileFilter;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -50,7 +53,6 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Xavier Draye and Guillaume Lobet - Université catholique de Louvain
@@ -60,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+class IdenticalDataFileFilter extends FileFilter {
 class IdenticalDataFileFilter extends FileFilter {
 
     String rootFName;
@@ -81,6 +84,7 @@ class IdenticalDataFileFilter extends FileFilter {
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+class DataFileFilterRSML extends FileFilter
 class DataFileFilterRSML extends FileFilter
         implements java.io.FileFilter {
 
@@ -233,6 +237,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      * The threshold.
      */
     float threshold = 100;
+    float threshold = 100;
     /**
      * The d M.
      */
@@ -261,6 +266,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      */
     float AUTOBUILD_THETA_STEP_FACTOR = (float) Math.PI / 2.0f;
     Map<Root, List<Node>> insertionPointsMap;
+    Map<Root, List<Node>> insertionPointsMap;
     /**
      * The directory.
      */
@@ -273,6 +279,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      * The n plants.
      */
     private int nPlants;
+    private int maxRootOrder = 0;
     private int maxRootOrder = 0;
 
     /**
@@ -293,6 +300,8 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         pixelSize = 2.54f / dpi;
         //readRSML(dataFName);
         readRSMLNew(dataFName);
+        //readRSML(dataFName);
+        readRSMLNew(dataFName);
     }
 
     /**
@@ -307,6 +316,37 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         readRSML(dataFName, timeLapseModel);
     }
 
+    public RootModel(RootModel rm) {
+        this.dpi = rm.dpi;
+        this.pixelSize = rm.pixelSize;
+        this.directory = rm.directory;
+        this.nPlants = rm.nPlants;
+        this.imgName = rm.imgName;
+        this.previousMagnification = rm.previousMagnification;
+        this.nextAutoRootID = rm.nextAutoRootID;
+        this.img = rm.img;
+        this.ip = rm.ip;
+        this.angleStep = rm.angleStep;
+        this.threshold = rm.threshold;
+        this.dM = rm.dM;
+        this.AUTOBUILD_MIN_STEP = rm.AUTOBUILD_MIN_STEP;
+        this.AUTOBUILD_STEP_FACTOR_BORDER = rm.AUTOBUILD_STEP_FACTOR_BORDER;
+        this.AUTOBUILD_STEP_FACTOR_DIAMETER = rm.AUTOBUILD_STEP_FACTOR_DIAMETER;
+        this.AUTOBUILD_MIN_THETA_STEP = rm.AUTOBUILD_MIN_THETA_STEP;
+        this.AUTOBUILD_THETA_STEP_FACTOR = rm.AUTOBUILD_THETA_STEP_FACTOR;
+        this.rootList = new ArrayList<Root>();
+        List<Float> birthTimes = new ArrayList<>();
+        for (Root r : rm.rootList) {
+            Node n = r.firstNode;
+            while (n != null) {
+                if (!birthTimes.contains(n.birthTime)) {
+                    birthTimes.add(n.birthTime);
+                }
+                n = n.child;
+            }
+        }
+        birthTimes.sort(Float::compareTo);
+        this.hoursCorrespondingToTimePoints = rm.hoursCorrespondingToTimePoints;
     public RootModel(RootModel rm) {
         this.dpi = rm.dpi;
         this.pixelSize = rm.pixelSize;
@@ -453,6 +493,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             tabRes[i] = RGBStackMerge.mergeChannels(new ImagePlus[]{tabReg[i], imgRSML}, true);
             IJ.run(tabRes[i], "RGB Color", "");
         }
+        return VitimageUtils.slicesToStack(tabRes);
         return VitimageUtils.slicesToStack(tabRes);
     }
 
@@ -782,6 +823,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         String fileName = VitimageUtils.withoutExtension(new File(f).getName());
         nextAutoRootID = 0;
         Document dom = null;
+        Document dom = null;
         Element re, me, met, mett, sce, plant, rootPrim, rootLat, geomPrim, polyPrim, geomLat, polyLat, pt;
 
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -981,6 +1023,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         };
         //Then we use comparator to sort rootList
         this.rootList.sort(comparatorPrimaries);
+        this.rootList.sort(comparatorPrimaries);
         int incr = 0;
         for (int i = 0; i < this.rootList.size(); i++) {
             if (this.rootList.get(i).order == 1) this.rootList.get(i).plantNumber = (incr++);
@@ -995,6 +1038,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             }
         };
         for (Root r : this.rootList) {
+            r.childList.sort(comparatorLateral);
             r.childList.sort(comparatorLateral);
         }
 
@@ -1381,6 +1425,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      * @param f the f
      */
     // still in use ? Yes, peviously called when making Blockmatching registration setup
+    // still in use ? Yes, peviously called when making Blockmatching registration setup
     public void readRSML(String f) {
 
         // Choose the datafile
@@ -1398,10 +1443,14 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
 
 
         Document documentDOM = null;
+        Document documentDOM = null;
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
         try {
             DocumentBuilder builder = factory.newDocumentBuilder();
+            File file = new File(fPath);
+            documentDOM = builder.parse(file);
+        } catch (SAXException | ParserConfigurationException | IOException sxe) {
             File file = new File(fPath);
             documentDOM = builder.parse(file);
         } catch (SAXException | ParserConfigurationException | IOException sxe) {
@@ -1434,6 +1483,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                     String metaName = nodeMeta.getNodeName();
                     // Get the image resolution
                     if (metaName.equals("unit")) unit = nodeMeta.getFirstChild().getNodeValue();
+                    if (metaName.equals("resolution")) res = Float.parseFloat(nodeMeta.getFirstChild().getNodeValue());
                     if (metaName.equals("resolution")) res = Float.parseFloat(nodeMeta.getFirstChild().getNodeValue());
                     if (metaName.equals("file-key")) datafileKey = nodeMeta.getFirstChild().getNodeValue();
                     if (metaName.equals("software")) origin = nodeMeta.getFirstChild().getNodeValue();
@@ -1474,6 +1524,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
     /**
      * Read common datafile structure.
      * RSML 2D
+     * RSML 2D
      *
      * @param f the f
      */
@@ -1493,9 +1544,12 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
 
 
         Document documentDOM = null;
+        Document documentDOM = null;
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
         try {
+            documentDOM = factory.newDocumentBuilder().parse(new File(fPath));
+        } catch (SAXException | ParserConfigurationException | IOException sxe) {
             documentDOM = factory.newDocumentBuilder().parse(new File(fPath));
         } catch (SAXException | ParserConfigurationException | IOException sxe) {
             logReadError();
@@ -1527,6 +1581,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                     String metaName = nodeMeta.getNodeName();
                     // Get the image resolution
                     if (metaName.equals("unit")) unit = nodeMeta.getFirstChild().getNodeValue();
+                    if (metaName.equals("resolution")) res = Float.parseFloat(nodeMeta.getFirstChild().getNodeValue());
                     if (metaName.equals("resolution")) res = Float.parseFloat(nodeMeta.getFirstChild().getNodeValue());
                     if (metaName.equals("file-key")) datafileKey = nodeMeta.getFirstChild().getNodeValue();
                     if (metaName.equals("software")) origin = nodeMeta.getFirstChild().getNodeValue();
@@ -1590,11 +1645,13 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
 
 
         Document documentDOM = null;
+        Document documentDOM = null;
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
         try {
             DocumentBuilder builder = factory.newDocumentBuilder();
             documentDOM = builder.parse(new File(fPath));
+        } catch (SAXException | ParserConfigurationException | IOException sxe) {
         } catch (SAXException | ParserConfigurationException | IOException sxe) {
             logReadError();
             return;
@@ -1672,6 +1729,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         String fileName = VitimageUtils.withoutExtension(new File(f).getName());
         // String fPath = f;
         nextAutoRootID = 0;
+        Document dom = null;
         Document dom = null;
         Element re, me, met, mett, sce, plant, rootPrim, rootLat, geomPrim, polyPrim, geomLat, polyLat, pt;
 
@@ -1841,6 +1899,11 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             } catch (Exception e) {
                 IJ.log("Error in resampling root " + r);
             }
+            try {
+                stamp += r.resampleFlyingPoints(hoursCorrespondingToTimePoints);
+            } catch (Exception e) {
+                IJ.log("Error in resampling root " + r);
+            }
         }
         return stamp;
     }
@@ -1897,6 +1960,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             }
         }
         return new Object[]{nodeMin, rootMin};
+    }
     }
 
     /**
@@ -1989,7 +2053,65 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 nodeMin = n;
             }
             n = n.child;
+        double distMin = 1E18;
+        Node nodeMin = null;
+        Root rootMin = null;
+        for (Root r : rootList) {
+            Node n = r.firstNode;
+            while (n != null) {
+                double dist = Math.sqrt((x - n.x) * (x - n.x) + (y - n.y) * (y - n.y));
+                if (dist < distMin && n.birthTime <= pt.z && r.order == 1) {
+                    distMin = dist;
+                    rootMin = r;
+                    nodeMin = n;
+                }
+                n = n.child;
+            }
         }
+        return new Object[]{nodeMin, rootMin};
+    }
+
+    public Object[] getClosesNodeParentOrder(Point3d pt, Root currentRoot) {
+        double x = pt.x;
+        double y = pt.y;
+        double distMin = 1E18;
+        if (currentRoot.order == 1) return new Object[]{null, null};
+        int parentOrder = currentRoot.order - 1;
+        Node nodeMin = null;
+        Root rootMin = null;
+        for (Root r : rootList) {
+            if (r.order != parentOrder) continue;
+            Node n = r.firstNode;
+            while (n != null) {
+                double dist = Math.sqrt((x - n.x) * (x - n.x) + (y - n.y) * (y - n.y));
+                if (dist < distMin && n.birthTime <= pt.z) {
+                    distMin = dist;
+                    rootMin = r;
+                    nodeMin = n;
+                }
+                n = n.child;
+            }
+        }
+        return new Object[]{nodeMin, rootMin};
+    }
+
+    public Object[] getClosesNodeInCurrentRoot(Point3d pt, Root currentRoot, List<Node> notTheseNode) {
+        double x = pt.x;
+        double y = pt.y;
+        double distMin = 1E18;
+        Node nodeMin = null;
+        Root rootMin = null;
+        Node n = currentRoot.firstNode;
+        while (n != null) {
+            double dist = Math.sqrt((x - n.x) * (x - n.x) + (y - n.y) * (y - n.y));
+            if (dist < distMin && n.birthTime <= pt.z && !notTheseNode.contains(n)) {
+                distMin = dist;
+                rootMin = currentRoot;
+                nodeMin = n;
+            }
+            n = n.child;
+        }
+        return new Object[]{nodeMin, rootMin};
         return new Object[]{nodeMin, rootMin};
     }
 
@@ -2211,6 +2333,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             r = rootList.get(i);
             if (r.isChild() != 0) {
                 n += (float) (r.getInsertAngl() * (180 / Math.PI));
+                n += (float) (r.getInsertAngl() * (180 / Math.PI));
                 m++;
             }
         }
@@ -2229,6 +2352,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             r = rootList.get(i);
             if (r.isChild() == 0) {
                 l += (int) r.lPosPixelsToCm(r.getRootLength());
+                l += (int) r.lPosPixelsToCm(r.getRootLength());
             }
         }
         return l;
@@ -2246,6 +2370,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         for (int i = 0; i < rootList.size(); i++) {
             r = rootList.get(i);
             if (r.isChild() == 0) {
+                l += (int) r.computeRootLength(t);
                 l += (int) r.computeRootLength(t);
             }
         }
@@ -2454,6 +2579,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             r = rootList.get(i);
             if (r.isChild() > 0) {
                 l += (int) r.lPosPixelsToCm(r.getRootLength());
+                l += (int) r.lPosPixelsToCm(r.getRootLength());
             }
         }
         return l;
@@ -2471,6 +2597,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         for (int i = 0; i < rootList.size(); i++) {
             r = rootList.get(i);
             if (r.isChild() > 0) {
+                l += (int) r.computeRootLength(t);
                 l += (int) r.computeRootLength(t);
             }
         }
@@ -2578,12 +2705,14 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         for (int i = 0; i < rootList.size(); i++) {
             r = rootList.get(i);
             if (!r.childList.isEmpty()) {
+            if (!r.childList.isEmpty()) {
                 ind++;
             }
         }
         String[] n = new String[ind];
         for (int i = 0; i < rootList.size(); i++) {
             r = rootList.get(i);
+            if (!r.childList.isEmpty()) {
             if (!r.childList.isEmpty()) {
                 n[i - c] = r.getRootID();
             } else c++;
@@ -2848,6 +2977,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             nPrim = rPar.firstNode;
 
             double distMin = Double.MAX_VALUE;
+            double distMin = Double.MAX_VALUE;
             while (nPrim.child != null) {
                 nPrim = nPrim.child;
                 if (distance(nPrim, nLat) < distMin) {
@@ -2881,6 +3011,11 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 n.x += (n.x - (float) coords[0]);
                 n.y += (n.y - (float) coords[1]);
             }
+            if (n.parent == null) {
+                coords = tr.transformPoint(new double[]{n.x, n.y, 0});
+                n.x += (n.x - (float) coords[0]);
+                n.y += (n.y - (float) coords[1]);
+            }
             while (n.child != null) {
                 n1 = n;
                 n = n.child;
@@ -2889,6 +3024,32 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 n.y += (n.y - (float) coords[1]);
             }
         }
+    }
+
+    /**
+     * Apply transform to geometry. for a specific time of appearance
+     *
+     * @param tr             the transformation
+     * @param timeAppearance the time of appearance
+     */
+    public void applyTransformToGeometry(ItkTransform tr, int timeAppearance) {
+        Root r;
+        Node n;
+        double[] coords;
+        for (int i = 0; i < rootList.size(); i++) {
+            r = rootList.get(i);
+            n = r.firstNode;
+            coords = tr.transformPoint(new double[]{n.x, n.y, 0});
+            n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
+            n.y += (n.birthTime == timeAppearance ? (n.y - (float) coords[1]) : 0);
+            while (n.child != null) {
+                n = n.child;
+                coords = tr.transformPoint(new double[]{n.x, n.y, 0});
+                n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
+                n.y += (n.birthTime == timeAppearance ? (n.y - (float) coords[1]) : 0);
+            }
+        }
+        System.out.println("Transformation applied");
     }
 
     /**
@@ -3139,6 +3300,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         int nPrim = 0;
         int nSecond = 0;
         for (Root r : rootList) {
+        for (Root r : rootList) {
             Node n = r.firstNode;
             Node n1;
             int lwid = (int) lineWidths[r.order - 1];
@@ -3269,6 +3431,48 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         }
         return new ImagePlus("", stack);
     }
+    public ImagePlus createGrayScaleImages(ImagePlus imgRef, double sigmaSmooth, boolean convexHull, boolean skeleton, int width) {
+        int w = imgRef.getWidth();
+        int h = imgRef.getHeight();
+        int t = imgRef.getStackSize();
+        ImageStack stack = new ImageStack(); // + t
+        for (int i = 1; i <= t; i++) {
+            ImagePlus imgRSML = new ImagePlus("", this.createImage(false, width, false, w, h, convexHull, i));
+            //imgRSML.show();
+            imgRSML = VitimageUtils.gaussianFiltering(imgRSML, sigmaSmooth, sigmaSmooth, sigmaSmooth);
+            if (skeleton) {
+                ImageProcessor ip = imgRSML.getProcessor();
+                for (Root r : rootList) {
+                    Node n = r.firstNode;
+                    Node n1;
+                    while (n.child != null) {
+                        n1 = n;
+                        n = n.child;
+                        if (n.birthTime > i) continue;
+                        ip.setColor(Color.white);
+                        ip.setLineWidth(width);
+                        ip.drawLine((int) (n1.x), (int) (n1.y), (int) (n.x), (int) (n.y));
+                    }
+                    ip.setColor(Color.white);
+                    ip.drawRect((int) (n.x - 1), (int) (n.y - 1), 3, 3);
+                    double distLast = 0;
+                    while (n.child != null) {
+                        n1 = n;
+                        n = n.child;
+                        if (n.birthTime > i) continue;
+                        distLast += distance(n, n1);
+                        if (distLast > 5) {
+                            ip.setColor(Color.black);
+                            ip.drawRect((int) (n.x - 1), (int) (n.y - 1), 3, 3);
+                            distLast = 0;
+                        }
+                    }
+                }
+            }
+            stack.addSlice("", imgRSML.getProcessor());
+        }
+        return new ImagePlus("", stack);
+    }
 
     /**
      * Creates the gray scale image.
@@ -3288,6 +3492,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         if (skeleton) {
             ImageProcessor ip = imgRSML.getProcessor();
             for (Root r : rootList) {
+            for (Root r : rootList) {
                 System.out.println("Got root " + r);
                 Node n = r.firstNode;
                 Node n1;
@@ -3297,8 +3502,10 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                     ip.setColor(Color.white);
                     ip.setLineWidth(width);
                     ip.drawLine((int) (n1.x), (int) (n1.y), (int) (n.x), (int) (n.y));
+                    ip.drawLine((int) (n1.x), (int) (n1.y), (int) (n.x), (int) (n.y));
                 }
             }
+            for (Root r : rootList) {
             for (Root r : rootList) {
                 Node n = r.firstNode;
                 Node n1;
@@ -3367,6 +3574,66 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             while (n.child != null) {
                 n1 = n;
                 n = n.child;
+                if (real) tracingP.setLineWidth((int) ((r.isChild() == 0) ? n.diameter : n.diameter - 1));
+                else tracingP.setLineWidth((r.isChild() == 0) ? line : line - 1);
+                tracingP.drawLine((int) (n1.x), (int) (n1.y), (int) (n.x), (int) (n.y));
+            }
+            tracing.setProcessor(tracingP);
+            if (convexhull) {
+                if (r.isChild() == 0) {
+                    tracing.setColor(Color.yellow);
+                    PolygonRoi ch = r.getConvexHull();
+                    int[] xRoi = ch.getXCoordinates();
+                    int[] yRoi = ch.getYCoordinates();
+                    Rectangle rect = ch.getBounds();
+                    for (int j = 1; j < xRoi.length; j++) {
+                        tracingP.drawLine(xRoi[j - 1] + rect.x, yRoi[j - 1] + rect.y, xRoi[j] + rect.x, yRoi[j] + rect.y);
+                    }
+                    tracingP.drawLine(xRoi[xRoi.length - 1] + rect.x, yRoi[xRoi.length - 1] + rect.y, xRoi[0] + rect.x, yRoi[0] + rect.y);
+                }
+            }
+            tracingP = tracing.getProcessor();
+        }
+
+        return tracingP;
+    }
+
+    public ImageProcessor createImage(boolean color, int line, boolean real, int w, int h, boolean convexhull, float time) {
+
+        Root r;
+        Node n, n1;
+        ImagePlus tracing;
+
+
+        if (color) tracing = IJ.createImage("tracing", "RGBblack", w, h, 1);
+        else tracing = IJ.createImage("tracing", "8-bitblack", w, h, 1);
+
+
+        ImageProcessor tracingP = tracing.getProcessor();
+
+        //if(name == null) fit.checkImageProcessor();
+        for (int i = 0; i < rootList.size(); i++) {
+            r = rootList.get(i);
+            n = r.firstNode;
+
+            if (color) {
+                switch (r.isChild()) {
+                    case 0:
+                        tracing.setColor(new Color(Math.round(255), 0, 0));
+                        break;
+                    case 1:
+                        tracing.setColor(new Color(0, Math.round(255), 0));
+                        break;
+                    case 2:
+                        tracing.setColor(new Color(0, 0, Math.round(255)));
+                        break;
+                }
+            } else tracing.setColor(Color.white);
+
+            while (n.child != null) {
+                n1 = n;
+                n = n.child;
+                if (n.birthTime > time) continue;
                 if (real) tracingP.setLineWidth((int) ((r.isChild() == 0) ? n.diameter : n.diameter - 1));
                 else tracingP.setLineWidth((r.isChild() == 0) ? line : line - 1);
                 tracingP.drawLine((int) (n1.x), (int) (n1.y), (int) (n.x), (int) (n.y));

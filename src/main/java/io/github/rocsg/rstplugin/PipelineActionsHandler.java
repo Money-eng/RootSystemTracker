@@ -489,6 +489,7 @@ public class PipelineActionsHandler {
             regAct.setLevelMinLinear(0);
             regAct.strideX = 8;
             regAct.strideY = 8;
+//            regAct.levelMaxLinear++;
             regAct.neighX = 3;
             regAct.neighY = 3;
             regAct.selectLTS = 90;

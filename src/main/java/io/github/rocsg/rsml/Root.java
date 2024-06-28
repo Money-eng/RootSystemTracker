@@ -3,7 +3,6 @@ package io.github.rocsg.rsml;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
-import io.github.rocsg.rsmlparser.*;
 import mdbtools.libmdb.mem;
 
 import java.awt.*;
@@ -11,7 +10,6 @@ import java.awt.geom.GeneralPath;
 import java.awt.geom.Point2D;
 import java.util.List;
 import java.util.*;
-import java.util.stream.Collectors;
 
 
 /**
@@ -211,6 +209,8 @@ public class Root implements Comparable<Root>, IRootParser {
     public List<io.github.rocsg.rsmlparser.Property> properties;
     public List<io.github.rocsg.rsmlparser.Function> functions;
 
+    /*For converting between rsmls and temporal rsmls*/
+    String label;
     /**
      * Constructor
      * Used when opening a xml file.
@@ -496,7 +496,7 @@ public class Root implements Comparable<Root>, IRootParser {
         }
 
 
-        
+
 
 
         Node prev = null;
@@ -1675,7 +1675,6 @@ public class Root implements Comparable<Root>, IRootParser {
      * Set the parentNode, which is the closest node in the parent from the base node of root.
      */
     public void setParentNode() {
-
         Node n = firstNode;
         Root p = getParent();
         if (p == null) {
@@ -2355,133 +2354,4 @@ public class Root implements Comparable<Root>, IRootParser {
         else return 1;
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof Root) {
-            Root r = (Root) obj;
-            boolean idTest = this.getRootID().equals(r.getRootID());
-            boolean parentTest = (this.parent == null && r.parent == null) || (this.parent != null && r.parent != null && this.parent.equals(r.parent));
-            boolean numNodeTest = (this.nNodes == r.nNodes);
-            boolean firstChildTest = Objects.equals(this.firstChild, r.firstChild);
-            boolean lastChildTest = Objects.equals(this.lastChild, r.lastChild);
-            boolean firstNodeTest = this.firstNode.equals(r.firstNode);
-            boolean lastNodeTest = this.lastNode.equals(r.lastNode);
-            boolean distanceFromApexTest = this.distanceFromApex == r.distanceFromApex;
-            boolean distanceFromBaseTest = this.distanceFromBase == r.distanceFromBase;
-            boolean insertAnglTest = this.insertAngl == r.insertAngl;
-            boolean interBranchTest = this.interBranch == r.interBranch;
-            boolean childDensityTest = this.childDensity == r.childDensity;
-            boolean isChildTest = this.isChild == r.isChild;
-            boolean parentTest2 = (this.parent == null && r.parent == null) || (this.parent != null && r.parent != null && this.parent.equals(r.parent));
-            boolean parentNameTest = (this.parentName == null && r.parentName == null) || (this.parentName != null && r.parentName != null && this.parentName.equals(r.parentName));
-            boolean parentKeyTest = (this.parentKey == null && r.parentKey == null) || (this.parentKey != null && r.parentKey != null && this.parentKey.equals(r.parentKey));
-            boolean rootKeyTest = this.rootKey.equals(r.rootKey);
-            boolean poIndexTest = this.poIndex == r.poIndex;
-            boolean labelTest = (this.label == null && r.label == null) || (this.label != null && r.label != null && this.label.equals(r.label));
-            boolean orderTest = this.order == r.order;
-            boolean propertiesTest = (this.properties == null && r.properties == null) || (this.properties != null && r.properties != null && this.properties.equals(r.properties));
-            boolean functionsTest = (this.functions == null && r.functions == null) || (this.functions != null && r.functions != null && this.functions.equals(r.functions));
-            if (idTest && parentTest && numNodeTest && firstChildTest && lastChildTest && firstNodeTest && lastNodeTest && distanceFromApexTest && distanceFromBaseTest && insertAnglTest && interBranchTest && childDensityTest && isChildTest && parentTest2 && parentNameTest && parentKeyTest && rootKeyTest && poIndexTest && labelTest && orderTest && propertiesTest && functionsTest) {
-                Node firstNode = this.firstNode;
-                Node firstNode2 = r.firstNode;
-                while (firstNode != null) {
-                    if (!firstNode.equals(firstNode2)) {
-                        return false;
-                    }
-                    firstNode = firstNode.child;
-                    firstNode2 = firstNode2.child;
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-
-    //// Implementation for IRootParser
-
-    @Override
-    public String getId() {
-        return rootID;
-    }
-
-    @Override
-    public String getLabel() {
-        return label;
-    }
-
-    @Override
-    public int getOrder() {
-        return order;
-    }
-
-    @Override
-    public List<Property> getProperties() {
-        return properties;
-    }
-
-    @Override
-    public List<Function> getFunctions() {
-        return functions;
-    }
-
-    @Override
-    public Geometry getGeometry() {
-        return null; // TODO
-    }
-
-    @Override
-    public List<IRootParser> getChildren() {
-        return childList.stream().map(r -> (IRootParser) r).collect(Collectors.toList());
-    }
-
-    @Override
-    public void addChild(IRootParser child, IRootModelParser rm) {
-        if (child instanceof Root) {
-            attachChild((Root) child);
-            if (rm instanceof RootModel) {
-                ((RootModel) rm).rootList.add((Root) child);
-            }
-        }
-        else {
-            throw new IllegalArgumentException("Child must be of type Root");
-        }
-    }
-
-    @Override
-    public String getParentId() {
-        return parentKey;
-    }
-
-    @Override
-    public String getParentLabel() {
-        return parentName;
-    }
-
-    public double lenghtRootAtTimeT(float time) {
-        Node n = this.firstNode;
-        double length = 0;
-        while (n.child != null) {
-            if ((n.birthTime == time) && (n.parent != null) && (n.parent.birthTime == time)) {
-                double dx = n.x - n.parent.x;
-                double dy = n.y - n.parent.y;
-                length += Math.sqrt(dx * dx + dy * dy);
-            }
-            n = n.child;
-        }
-        return length;
-    }
-
-    public List<Node> getNodesAtTimeT(float time){
-        List<Node> nodes = new ArrayList<Node>();
-        Node n = this.firstNode;
-        while (n.child != null) {
-            if (n.birthTime == time) {
-                nodes.add(n);
-            }
-            n = n.child;
-        }
-        return nodes;
-    }
 }
