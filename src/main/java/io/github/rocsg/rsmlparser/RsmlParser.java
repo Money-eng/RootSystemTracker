@@ -48,7 +48,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.github.rocsg.rstplugin.PipelineParamHandler.configurePipelineParams;
-import static io.github.rocsg.rstutils.BlockMatchingRegistrationRootModel.setupAndRunRsmlBlockMatchingRegistration;
 
 public class RsmlParser {
 
