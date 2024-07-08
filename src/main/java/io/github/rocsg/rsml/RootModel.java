@@ -25,6 +25,7 @@ import org.apache.commons.math3.ml.distance.DistanceMeasure;
 import org.scijava.vecmath.Point3d;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.ProcessingInstruction;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
@@ -793,13 +794,17 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             return;
         }
 
+        // add <?xml version='1.0`' encoding='UTF-8'?> at the beginning of the file for formatting purposes
+        //ProcessingInstruction xmlDecl = dom.createProcessingInstruction("xml", "version=\"1.0\" encoding=\"UTF-8\"");
+        //dom.insertBefore(xmlDecl, dom.getFirstChild());
+
         re = dom.createElement("rsml");
 
-        //create time list
-        String hours = "";
+        // create a time list
+        StringBuilder hours = new StringBuilder();
         for (int i = 1; i < hoursCorrespondingToTimePoints.length - 1; i++)
-            hours += VitimageUtils.dou(hoursCorrespondingToTimePoints[i]) + ",";
-        hours += VitimageUtils.dou(hoursCorrespondingToTimePoints[hoursCorrespondingToTimePoints.length - 1]);
+            hours.append(VitimageUtils.dou(hoursCorrespondingToTimePoints[i])).append(",");
+        hours.append(VitimageUtils.dou(hoursCorrespondingToTimePoints[hoursCorrespondingToTimePoints.length - 1]));
 
         //Build and add metadata
         me = dom.createElement("metadata");
@@ -825,7 +830,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         met.setTextContent(fileName);
         me.appendChild(met);
         met = dom.createElement("observation-hours");
-        met.setTextContent(hours);
+        met.setTextContent(hours.toString());
         me.appendChild(met);
         met = dom.createElement("image");
         mett = dom.createElement("label");
@@ -837,34 +842,33 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         me.appendChild(met);
         re.appendChild(me);
 
-        //Build and add scene
+        //Build and add the scene
         sce = dom.createElement("scene");
 
         //Build and add plant 1
         int incrPlant = 0;
-        for (int indexPrim = 0; indexPrim < rootList.size(); indexPrim++) {
-            Root r = rootList.get(indexPrim);
+        for (Root r : rootList) {
             if (r.isChild == 1) continue;
             ++incrPlant;
             plant = dom.createElement("plant");
-            plant.setAttribute("ID", "" + (incrPlant));
-            plant.setAttribute("label", "");
+            plant.setAttribute("ID", "" + incrPlant);
+            plant.setAttribute("label", "Plant " + incrPlant);
             rootPrim = dom.createElement("root");
             rootPrim.setAttribute("ID", (incrPlant) + ".1");
-            rootPrim.setAttribute("label", "");
+            rootPrim.setAttribute("label", r.label);
             geomPrim = dom.createElement("geometry");
             polyPrim = dom.createElement("polyline");
             double[][] coord = getRootCoordinates(r);
-            for (int i = 0; i < coord.length; i++) {
+            for (double[] value : coord) {
                 pt = dom.createElement("point");
-                pt.setAttribute(respectStandardRSML ? "x" : "coord_x", "" + (shortValues ? VitimageUtils.dou(coord[i][0]) : coord[i][0]));
-                pt.setAttribute(respectStandardRSML ? "y" : "coord_y", "" + (shortValues ? VitimageUtils.dou(coord[i][1]) : coord[i][1]));
+                pt.setAttribute(respectStandardRSML ? "x" : "coord_x", "" + (shortValues ? VitimageUtils.dou(value[0]) : value[0]));
+                pt.setAttribute(respectStandardRSML ? "y" : "coord_y", "" + (shortValues ? VitimageUtils.dou(value[1]) : value[1]));
                 if (!respectStandardRSML) {
-                    pt.setAttribute("vx", "" + (shortValues ? VitimageUtils.dou(coord[i][2]) : coord[i][2]));
-                    pt.setAttribute("vy", "" + (shortValues ? VitimageUtils.dou(coord[i][3]) : coord[i][3]));
-                    pt.setAttribute("diameter", "" + (shortValues ? VitimageUtils.dou(coord[i][4]) : coord[i][4]));
-                    pt.setAttribute("coord_t", "" + (shortValues ? VitimageUtils.dou(coord[i][5]) : coord[i][5]));
-                    pt.setAttribute("coord_th", "" + (shortValues ? VitimageUtils.dou(coord[i][6]) : coord[i][6]));
+                    pt.setAttribute("vx", "" + (shortValues ? VitimageUtils.dou(value[2]) : value[2]));
+                    pt.setAttribute("vy", "" + (shortValues ? VitimageUtils.dou(value[3]) : value[3]));
+                    pt.setAttribute("diameter", "" + (shortValues ? VitimageUtils.dou(value[4]) : value[4]));
+                    pt.setAttribute("coord_t", "" + (shortValues ? VitimageUtils.dou(value[5]) : value[5]));
+                    pt.setAttribute("coord_th", "" + (shortValues ? VitimageUtils.dou(value[6]) : value[6]));
                 }
                 polyPrim.appendChild(pt);
             }
@@ -875,18 +879,18 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 Element funcPrim = dom.createElement("function");
                 funcPrim.setAttribute("name", "timepoint");
                 funcPrim.setAttribute("domain", "polyline");
-                for (int i = 0; i < coord.length; i++) {
+                for (double[] doubles : coord) {
                     pt = dom.createElement("sample");
-                    pt.setTextContent("" + (shortValues ? VitimageUtils.dou(coord[i][5]) : coord[i][5]));
+                    pt.setTextContent("" + (shortValues ? VitimageUtils.dou(doubles[5]) : doubles[5]));
                     funcPrim.appendChild(pt);
                 }
                 functionPrim.appendChild(funcPrim);
                 Element funcPrim2 = dom.createElement("function");
                 funcPrim2.setAttribute("name", "hours");
                 funcPrim2.setAttribute("domain", "polyline");
-                for (int i = 0; i < coord.length; i++) {
+                for (double[] doubles : coord) {
                     pt = dom.createElement("sample");
-                    pt.setTextContent("" + (shortValues ? VitimageUtils.dou(coord[i][6]) : coord[i][6]));
+                    pt.setTextContent("" + (shortValues ? VitimageUtils.dou(doubles[6]) : doubles[6]));
                     funcPrim2.appendChild(pt);
                 }
                 functionPrim.appendChild(funcPrim2);
@@ -894,26 +898,26 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             }
 
 
-            //Ajouter les enfants
+            // Ajouter les enfants
             int incrLat = 0;
             for (Root rLat : r.childList) {
                 incrLat++;
                 rootLat = dom.createElement("root");
                 rootLat.setAttribute("ID", (incrPlant) + ".1." + incrLat);
-                rootLat.setAttribute("label", "");
+                rootLat.setAttribute("label", rLat.label);
                 geomLat = dom.createElement("geometry");
                 polyLat = dom.createElement("polyline");
                 coord = getRootCoordinates(rLat);
-                for (int i = 0; i < coord.length; i++) {
+                for (double[] doubles : coord) {
                     pt = dom.createElement("point");
-                    pt.setAttribute(respectStandardRSML ? "x" : "coord_x", "" + (shortValues ? VitimageUtils.dou(coord[i][0]) : coord[i][0]));
-                    pt.setAttribute(respectStandardRSML ? "y" : "coord_y", "" + (shortValues ? VitimageUtils.dou(coord[i][1]) : coord[i][1]));
+                    pt.setAttribute(respectStandardRSML ? "x" : "coord_x", "" + (shortValues ? VitimageUtils.dou(doubles[0]) : doubles[0]));
+                    pt.setAttribute(respectStandardRSML ? "y" : "coord_y", "" + (shortValues ? VitimageUtils.dou(doubles[1]) : doubles[1]));
                     if (!respectStandardRSML) {
-                        pt.setAttribute("vx", "" + (shortValues ? VitimageUtils.dou(coord[i][2]) : coord[i][2]));
-                        pt.setAttribute("vy", "" + (shortValues ? VitimageUtils.dou(coord[i][3]) : coord[i][3]));
-                        pt.setAttribute("diameter", "" + (shortValues ? VitimageUtils.dou(coord[i][4]) : coord[i][4]));
-                        pt.setAttribute("coord_t", "" + (shortValues ? VitimageUtils.dou(coord[i][5]) : coord[i][5]));
-                        pt.setAttribute("coord_th", "" + (shortValues ? VitimageUtils.dou(coord[i][6]) : coord[i][6]));
+                        pt.setAttribute("vx", "" + (shortValues ? VitimageUtils.dou(doubles[2]) : doubles[2]));
+                        pt.setAttribute("vy", "" + (shortValues ? VitimageUtils.dou(doubles[3]) : doubles[3]));
+                        pt.setAttribute("diameter", "" + (shortValues ? VitimageUtils.dou(doubles[4]) : doubles[4]));
+                        pt.setAttribute("coord_t", "" + (shortValues ? VitimageUtils.dou(doubles[5]) : doubles[5]));
+                        pt.setAttribute("coord_th", "" + (shortValues ? VitimageUtils.dou(doubles[6]) : doubles[6]));
                     }
                     polyLat.appendChild(pt);
                 }
@@ -924,18 +928,18 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                     Element funcLat = dom.createElement("function");
                     funcLat.setAttribute("name", "timepoint");
                     funcLat.setAttribute("domain", "polyline");
-                    for (int i = 0; i < coord.length; i++) {
+                    for (double[] doubles : coord) {
                         pt = dom.createElement("sample");
-                        pt.setTextContent("" + (shortValues ? VitimageUtils.dou(coord[i][5]) : coord[i][5]));
+                        pt.setTextContent("" + (shortValues ? VitimageUtils.dou(doubles[5]) : doubles[5]));
                         funcLat.appendChild(pt);
                     }
                     functionLat.appendChild(funcLat);
                     Element funcLat2 = dom.createElement("function");
                     funcLat2.setAttribute("name", "hours");
                     funcLat2.setAttribute("domain", "polyline");
-                    for (int i = 0; i < coord.length; i++) {
+                    for (double[] doubles : coord) {
                         pt = dom.createElement("sample");
-                        pt.setTextContent("" + (shortValues ? VitimageUtils.dou(coord[i][6]) : coord[i][6]));
+                        pt.setTextContent("" + (shortValues ? VitimageUtils.dou(doubles[6]) : doubles[6]));
                         funcLat2.appendChild(pt);
                     }
                     functionLat.appendChild(funcLat2);
@@ -954,13 +958,14 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         Transformer transformer;
         try {
             transformer = tf.newTransformer();
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            transformer.setOutputProperty(OutputKeys.METHOD, "xml");
+            transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
             FileOutputStream outStream = new FileOutputStream(new File(f));
             transformer.transform(new DOMSource(dom), new StreamResult(outStream));
             outStream.close();
-        } catch (TransformerException eee) {
-            eee.printStackTrace();
         } catch (Exception ee) {
             ee.printStackTrace();
         }
@@ -3851,6 +3856,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         Root root = new Root(null, rm, "", rootList.get(0).getOrder());
         root.rootID = id;
         root.rootKey = rootList.get(0).getLabel();
+        root.label = rootList.get(0).getLabel();
         boolean first = true;
 
         for (Root4Parser root4Parser : rootList) {
@@ -3934,14 +3940,6 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 meanX /= sizeNum;
                 meanY /= sizeNum;
 
-                if (n == null) {
-                    break;
-                }
-                n = n.child;
-                if (n == null) {
-                    break;
-                }
-
                 n.x = (float) meanX;
                 n.y = (float) meanY;
                 n.birthTime = minT;
@@ -3950,6 +3948,11 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 this.hoursCorrespondingToTimePoints = new double[(int) (maxT - minT) + 1];
                 for (int i = 0; i < this.hoursCorrespondingToTimePoints.length; i++) {
                     this.hoursCorrespondingToTimePoints[i] = minTime + i;
+                }
+
+                n = n.child;
+                if (n == null) {
+                    break;
                 }
             }
             nodes.clear();

@@ -499,12 +499,18 @@ class RootModelGraph {
         displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
 
         readAndApplyTransforms(transformerPath, rms, refImage, imgInitSize);
-        //ImagePlus img2 = displayOnImage(createGraphFromRM(rms), refImage);
-        //img2.show();
-
         rms.adjustRootModel();
+
+
         ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage);
         img3.show();
+
+        // save RootModel before and after adjustment
+        String path2NewRSML = path2RSMLs + "\\NewRSMLs\\" + LocalDate.now() + ".rsml";
+        // create folder if not exists
+        Path path = Paths.get(path2NewRSML).getParent();
+        if (!Files.exists(path)) Files.createDirectories(path);
+        rms.writeRSML3D(new File(path2NewRSML).getAbsolutePath().replace("\\", "/"), "", true, false);
 
         //setupAndRunRsmlBlockMatchingRegistration(rms, refImage);
 
@@ -518,11 +524,12 @@ class RootModelGraph {
         //Map<Root, List<Node>> insertionPoints = rms.getInsertionPoints();
         //ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage, insertionPoints);
         //img3.show();
+        // stop execution but not the running programs
 
-        BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(rms);
+        /*BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(rms);
         bm.setupAndRunRsmlBlockMatchingRegistration(rms, refImage);
 
-        PlantReconstruction pr = new PlantReconstruction(rms);
+        PlantReconstruction pr = new PlantReconstruction(rms);*/
 
         /*interpolatePointsSplineFitter(rms, displayOnImage(createGraphFromRM(rms), refImage, insertionPoints));
 
@@ -535,9 +542,9 @@ class RootModelGraph {
         interpolatePointsRBF(rms, displayOnImage(createGraphFromRM(rms), refImage, insertionPoints));
 
         interpolatePointsBezier(rms, displayOnImage(createGraphFromRM(rms), refImage, insertionPoints));*/
-        System.out.println("RootModelGraph : " + rms);
+        //System.out.println("RootModelGraph : " + rms);
 
-        displayOnImage(createGraphFromRM(rms), refImage).show();
+        //displayOnImage(createGraphFromRM(rms), refImage).show();
         //interpolatePointsSplineFitter(rms, imag.duplicate());
 
         //interpolatePointsCurveFitter(rms, imag.duplicate());
@@ -803,7 +810,6 @@ class RootModelGraph {
      */
     private void
     readAndApplyTransforms(String transformerPath, RootModel rms, ImagePlus res2, ImagePlus imgInitSize) throws IOException {
-
         // Define these as class variables if the method is called multiple times
         final Pattern indexPattern = Pattern.compile("_(\\d+)\\.");
         final PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher("glob:**.transform.tif");

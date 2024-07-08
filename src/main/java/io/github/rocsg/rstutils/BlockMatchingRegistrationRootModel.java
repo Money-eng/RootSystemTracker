@@ -368,7 +368,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
             dirOutTemp = VitiDialogs.chooseDirectoryUI("Select output dir", "Select an output directory to begin a new work");
         }
         final String dirOut = dirOutTemp;
-        if (new File(dirOut).list().length > 0) {
+        if (Objects.requireNonNull(new File(dirOut).list()).length > 0) {
             if (!VitiDialogs.getYesNoUI("Warning", "Warning: there seems to be other files in the output dir. Risk of erasing older files. Process anyway ?"))
                 return;
         }
@@ -497,7 +497,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         BlockMatchingRegistration br = BlockMatchingRegistration.setupBlockMatchingRegistration(imgRef, imgMov, regAct);
         BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(br, rootModel);
 
-        boolean display = false;
+        boolean display = true;
         boolean multiRsml = false;
         if (!display) bm.imageJOutputActivated = false;
         //bm.waitBeforeStart=false;

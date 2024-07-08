@@ -215,7 +215,8 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
     private boolean toResize = true;
 
 
-    private String version = "v2.0.2-SNAPSHOT - Release candidate";
+    private final String currentVersion = "v2.0.2-SNAPSHOT"; // TODO : update version
+    private String previousVersion = "v2.0.0 Kangouroo enchante - Release";
 
 
     /**
@@ -434,18 +435,12 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         t = new Timer();
 
         //Choose an existing expertize, or initiate a new one
-        System.out.println("Toto 31");
         if (arg != null && !arg.isEmpty() && new File(arg).exists()) {
             dataDir = arg;
-            System.out.println("Toto 32");
         } else {
-            System.out.println("Toto 33");
             dataDir = VitiDialogs.chooseDirectoryUI("Choose a boite directory", "Ok");
-            System.out.println("Toto 34");
         }
-        System.out.println("Toto 35");
         if (!new File(dataDir, "InfoRSMLExpert.csv").exists()) startNewExpertize();
-        System.out.println("Toto 36");
         readInfoFile();
         t.mark();
 
@@ -468,7 +463,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         for (int i = 0; i < tab.length; i++) System.arraycopy(tab[i], 0, tabModifs[i], 0, tab[i].length);
         this.stackPath = tabModifs[0][0];
         this.rsmlPath = tabModifs[0][1];
-        this.version = tabModifs[0][2];
+        this.previousVersion = tabModifs[0][2]; // version is the last software version ?
     }
 
     public void writeInfoFile() {
@@ -478,8 +473,8 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
     public void startNewExpertize() {
 //        this.stackPath = new File(dataDir, "22_registered_stack.tif").getAbsolutePath().replace("\\", "/");
 //        this.rsmlPath = new File(dataDir, "61_graph.rsml").getAbsolutePath().replace("\\", "/");
-        this.stackPath = new File(dataDir, "22_registered_stack.tif").getAbsolutePath().replace("\\", "/");
-        this.rsmlPath = new File(dataDir, "61_graph.rsml").getAbsolutePath().replace("\\", "/");
+        this.stackPath = new File(dataDir, "22_registered_stack.tif").getAbsolutePath().replace("\\", "/").replace(" ", "");
+        this.rsmlPath = new File(dataDir, "61_graph.rsml").getAbsolutePath().replace("\\", "/").replace(" ", "");
         try {
             FileUtils.copyFile(new File(dataDir, "61_graph.rsml"), new File(dataDir, "61_graph_copy_before_expertize.rsml"));
         } catch (IOException e) {
@@ -493,7 +488,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         for (String[] tabModif : tabModifs) Arrays.fill(tabModif, "");
         tabModifs[0][0] = this.stackPath;
         tabModifs[0][1] = this.rsmlPath;
-        tabModifs[0][2] = this.version;
+        tabModifs[0][2] = this.previousVersion;
         writeInfoFile();
     }
 
@@ -2434,7 +2429,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
             return str;
         }
 
-        str[0] = "Welcome to RSML Expert " + version;
+        str[0] = "Welcome to RSML Expert \n\t Previous version" + previousVersion + "\n\t Current version" + currentVersion;
         str[1] = "System check. Available memory in JVM=" + jvmMemory + " MB over " + memoryFullSize + " MB. #Available processor cores=" + nbCpu + ".";
         if (verbose) return str;
         else return new String[]{"", ""};

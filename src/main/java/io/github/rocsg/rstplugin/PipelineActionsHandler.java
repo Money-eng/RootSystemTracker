@@ -154,11 +154,13 @@ public class PipelineActionsHandler {
             SmoothingRecursiveGaussianImageFilter itkGauss = new SmoothingRecursiveGaussianImageFilter();
             itkGauss.delete();
         } catch (UnsatisfiedLinkError e) {
-            System.err.println("La bibliothèque SimpleITKJava n'est pas chargée");
+            System.err.println("La bibliothèque SimpleITKJava ne s'est pas chargée");
             System.err.println(e);
             System.exit(0);
         }
     }
+
+    // Pipeline steps et Preprocessing //
 
     /**
      * This function allows the user to select the first and last steps and the way
@@ -389,6 +391,8 @@ public class PipelineActionsHandler {
         return executed;
     }
 
+    // Stack data //
+
     /**
      * This function stacks image data based on the provided parameters.
      *
@@ -429,9 +433,19 @@ public class PipelineActionsHandler {
 
         //Size conversion and saving. No bitdepth conversion to handle here, supposing that everything is 8-bit there
         stack = VitimageUtils.resize(stack, (int) (stack.getWidth() / PipelineParamHandler.subsamplingFactor), (int) (stack.getHeight() / PipelineParamHandler.subsamplingFactor), stack.getStackSize());
+        
+        boolean makeHistoMatch = true;
+        // if makeHistoMatch, use bleach correction and histogram matching 
+        if (makeHistoMatch) {
+            //( Image › Adjust › Bleach Correction)
+            IJ.run(stack, "Bleach Correction", "Histogram Matching");
+        }
+        
         IJ.saveAsTiff(stack, new File(outputDataDir, "11_stack.tif").getAbsolutePath());
         return true;
     }
+
+    // Daisy-chain registration //
 
     /**
      * This function registers a series of images based on the provided parameters.
@@ -628,6 +642,8 @@ public class PipelineActionsHandler {
         return true;
     }
 
+    // Mask computation and leaves removal //
+
     /**
      * This function computes masks for an image and removes leaves based on the
      * masks.
@@ -743,6 +759,8 @@ public class PipelineActionsHandler {
         return VitimageUtils.slicesToStack(imgs);
     }
 
+    // DateMap computation for space-time segmentation //
+
     /**
      * This function computes a date map for a time-lapse sequence of images.
      *
@@ -781,12 +799,16 @@ public class PipelineActionsHandler {
         return true;
     }
 
+    // Creating Graph and adjusting it
+
     public static boolean buildAndProcessGraph(int indexImg, String outputDataDir, PipelineParamHandler pph) {
         System.out.println("index = " + indexImg + " output_dir = " + outputDataDir + " pph = " + pph);
         ImagePlus imgDates = IJ.openImage(new File(outputDataDir, "40_date_map.tif").getAbsolutePath());
         RegionAdjacencyGraphPipeline.buildAndProcessGraphStraight(imgDates, outputDataDir, pph, indexImg);
         return true;
     }
+
+    // RSML computation //
 
     /**
      * This method computes the Root System Markup Language (RSML) until expertize for a given image.
@@ -897,12 +919,6 @@ public class PipelineActionsHandler {
         return true;
     }
 
-    // TODO
-    public static boolean extractPhenes(int indexImg, String outputDataDir, PipelineParamHandler pph) {
-
-        return true;
-    }
-
     public static ImagePlus createTimeSequenceSuperposition(ImagePlus imgReg, RootModel rm) {
         ImagePlus[] tabRes = VitimageUtils.stackToSlices(imgReg);
         for (int i = 0; i < tabRes.length; i++) {
@@ -1007,6 +1023,7 @@ public class PipelineActionsHandler {
 
 
     //////////////////// HELPERS OF COMPUTEMASKS ////////////////////////
+
     public static ImagePlus computeMire(ImagePlus imgIn) {
         ImagePlus img = new Duplicator().run(imgIn, 1, 1, 1, 1, 1, 1);
         IJ.run(img, "Median...", "radius=9 stack");
