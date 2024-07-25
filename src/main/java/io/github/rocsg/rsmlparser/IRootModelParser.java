@@ -37,24 +37,6 @@ class Metadata {
         this.propertiedef = new ArrayList<>();
     }
 
-    public Metadata(Metadata metadata) {
-        this.version = metadata.version;
-        this.unit = metadata.unit;
-        this.resolution = metadata.resolution;
-        this.modifDate = metadata.modifDate;
-        this.software = metadata.software;
-        this.user = metadata.user;
-        this.fileKey = metadata.fileKey;
-        this.propertiedef = new ArrayList<>();
-        this.date2Use = metadata.date2Use;
-        for (PropertyDefinition propertiedef : metadata.propertiedef) {
-            this.propertiedef.add(new PropertyDefinition(propertiedef.label, propertiedef.type, propertiedef.unit));
-        }
-    }
-
-    public void addAdditionalInfo(String key, String value) {
-    }
-
     class PropertyDefinition {
         // Mapping label - type - unit
         public String label;

@@ -3,6 +3,7 @@ package io.github.rocsg.rsmlparser;
 import java.awt.geom.Point2D;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +78,18 @@ public class Root4Parser implements IRootParser {
     @Override
     public List<IRootParser> getChildren() {
         return children;
+    }
+
+    public static List<Root4Parser> getTotalChildrenList(List<Root4Parser> roots) { // supposed to be ordered by time, increasing order
+        List<Root4Parser> totalChildren = new ArrayList<>();
+        for (int i = roots.size() - 1; i >= 0; i--) { // from last time to first time
+            Root4Parser root = roots.get(i);
+            for (IRootParser child : root.getChildren()) {
+                // if the child id cannot be found in the totalChildren list, we add it
+                if (totalChildren.stream().noneMatch(r -> r.getId().equals(child.getId()))) totalChildren.add((Root4Parser) child);
+            }
+        }
+        return totalChildren;
     }
 
     @Override

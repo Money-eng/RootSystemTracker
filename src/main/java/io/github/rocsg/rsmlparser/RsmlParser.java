@@ -26,7 +26,6 @@ public class RsmlParser {
     public static SelectionStrategy strategy;
     public String path2RSMLs;
 
-
     public RsmlParser(String path2RSMLs) {
         this.path2RSMLs = path2RSMLs;
 
@@ -35,6 +34,9 @@ public class RsmlParser {
     }
 
     public static void main(String[] args) throws IOException {
+        // Load the library
+        System.loadLibrary("SimpleITKJava");
+
         ImageJ ij = new ImageJ();
         RootModelGraph rootModelGraph = new RootModelGraph();
         ImagePlus imp = rootModelGraph.image;
@@ -57,6 +59,9 @@ public class RsmlParser {
      * @param dateOfFile  The date of the rsml file
      */
     private static void parseRoots(NodeList rootList, Plant parentPlant, Root4Parser parentRoot, int order, String dateOfFile) { // TODO : we assumed 2nd order root max
+        if (order == 1) {
+            System.out.println("Roots : " + rootList.getLength());
+        }
         for (int i = 0; i < rootList.getLength(); i++) {
             org.w3c.dom.Node rootNode = rootList.item(i);
 
@@ -112,17 +117,7 @@ public class RsmlParser {
                 for (int m = 0; m < functionList.getLength(); m++) {
                     org.w3c.dom.Node functionNode = functionList.item(m);
                     if (functionNode.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
-                        Element functionElement = (Element) functionNode;
-                        String functionName = functionElement.getAttribute("name");
-                        Function function = new Function(functionName);
-                        NodeList sampleList = functionElement.getElementsByTagName("sample");
-                        for (int n = 0; n < sampleList.getLength(); n++) {
-                            org.w3c.dom.Node sampleNode = sampleList.item(n);
-                            if (sampleNode.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
-                                Element sampleElement = (Element) sampleNode;
-                                function.addSample(sampleElement.getTextContent());
-                            }
-                        }
+                        Function function = getFunction((Element) functionNode);
                         root.addFunction(function);
                     }
                 }
@@ -132,6 +127,9 @@ public class RsmlParser {
                 NodeList childRoots = rootElement.getElementsByTagName("root");
                 parseRoots(childRoots, parentPlant, root, order + 1, dateOfFile);
             }
+        }
+        if (order == 1) {
+            System.out.println("Roots : " + rootList.getLength());
         }
 
         List<String> listID = parentPlant.getListID();
@@ -145,6 +143,9 @@ public class RsmlParser {
                 }
             }
         }
+        if (order == 1) {
+            System.out.println("Roots : " + rootList.getLength());
+        }
         parentPlant.roots.removeAll(list2Remove);
 
         // for the first order roots of plant, keep only the first 2 functions
@@ -153,6 +154,23 @@ public class RsmlParser {
                 root.functions.subList(2, root.functions.size()).clear();
             }
         }
+        if (order == 1) {
+            System.out.println("Roots : " + rootList.getLength());
+        }
+    }
+
+    private static Function getFunction(Element functionNode) {
+        String functionName = functionNode.getAttribute("name");
+        Function function = new Function(functionName);
+        NodeList sampleList = functionNode.getElementsByTagName("sample");
+        for (int n = 0; n < sampleList.getLength(); n++) {
+            org.w3c.dom.Node sampleNode = sampleList.item(n);
+            if (sampleNode.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
+                Element sampleElement = (Element) sampleNode;
+                function.addSample(sampleElement.getTextContent());
+            }
+        }
+        return function;
     }
 
     /**

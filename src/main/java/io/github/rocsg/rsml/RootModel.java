@@ -48,6 +48,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
 
+import static io.github.rocsg.rsmlparser.Root4Parser.getTotalChildrenList;
+
 /**
  * Taken from Xavier Draye and Guillaume Lobet - Université catholique de Louvain
  * @author Romain Fernandez and Loaï gandeel
@@ -3724,19 +3726,23 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         List<Root4Parser> rootList = rootsMap.get(id);
         Root root = null;
         root = createRoot(rm, id, rootList, dates, scaleFactor);
-
+        // It is a lateral root - known from the RootModel (not parser
         if (parent != null) {
             parent.attachChild(root);
             root.attachParent(parent);
-        } else if (!rm.rootList.isEmpty()) {
+        }
+        else if (!rm.rootList.isEmpty()) {
             Root checkRoot = looking4Root(rm.rootList, root.getId());
             rm.rootList.add(root);
-            if (Objects.requireNonNull(checkRoot).order > 1) {
+            if (checkRoot == null ) {
+                System.out.println("Root not found in the root list ! ");
+            }
+            else if (checkRoot.order > 1) {
                 root.attachParent(checkRoot.parent);
             }
         } else rm.rootList.add(root);
 
-        for (IRootParser child : rootList.get(rootList.size() - 1).getChildren()) {
+        for (IRootParser child : getTotalChildrenList(rootList)) {
             buildRootHierarchy(rm, rootsMap, child.getId(), root, dates, scaleFactor);
         }
     }
@@ -3832,8 +3838,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             //calculateNodeKMeans(r, nodes, timeWithMaxPoints, minTime);
 
             // Call the new function to process nodes and calculate means
-            calculateNodeMeans(r, nodes, timeWithMaxPoints, minTime);
-
+            //calculateNodeMeans(r, nodes, timeWithMaxPoints, minTime);
+            calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
             nodes.clear();
         }
 
@@ -3879,9 +3885,9 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         r.firstNode.parent = null;
         r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
         r.lastNode.child = null;
-        r.nNodes = nodes.get(timeWithMaxPoints).size();
+        r.nNodes = nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size() + 1;
         Node n = r.firstNode;
-        for (int j = 1; j < r.nNodes - 1; j++) {
+        for (int j = 0; j < nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size(); j++) {
             double meanX = 0;
             double meanY = 0;
             float minT = Float.MAX_VALUE;
@@ -3893,12 +3899,12 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
                     meanX += nodes.get(key).get(j).x;
                     meanY += nodes.get(key).get(j).y;
 
+                    // counting on the fact that there are some errors
                     minT = Math.min(key, minT);
                     maxT = Math.max(key, maxT);
 
                     sizeNum++;
-                } catch (IndexOutOfBoundsException e) {
-                    continue;
+                } catch (IndexOutOfBoundsException ignored) {
                 }
             }
             meanX /= sizeNum;
@@ -3920,6 +3926,51 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         }
     }
 
+    /**
+     * Calculate the mean values for nodes and update the root model.
+     */
+    private void calculateNodeMax(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
+        r.firstNode = nodes.get(timeWithMaxPoints).get(0);
+        r.firstNode.parent = null;
+        r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
+        r.lastNode.child = null;
+        //r.nNodes =nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size() + 1;
+        //for (int j = 0; j < nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size(); j++) {
+        r.nNodes =nodes.get(timeWithMaxPoints).size() + 1;
+        Node n = r.firstNode;
+        for (int j = 0; j < nodes.get(timeWithMaxPoints).size(); j++) {
+            double maxX = 0; // not max value of x but max time x value
+            double maxY = 0;
+            float minT = Float.MAX_VALUE;
+            float maxT = Float.MIN_VALUE;
+            for (float key : nodes.keySet()) {
+                try {
+                    double filter = nodes.get(key).get(j).x;
+                    minT = Math.min(key, minT);
+                    if (Math.max(key, maxT) > maxT) {
+                        maxX = nodes.get(timeWithMaxPoints).get(j).x;
+                        maxY = nodes.get(timeWithMaxPoints).get(j).y;
+                    }
+                    maxT = Math.max(key, maxT);
+                } catch (IndexOutOfBoundsException ignored) {
+                }
+            }
+
+            if (minT == Float.MAX_VALUE) {
+                System.out.println("Error: minT is still Float.MAX_VALUE");
+            }
+            n.x = (float) maxX;
+            n.y = (float) maxY;
+            n.birthTime = minT;
+            n.birthTimeHours = minT * 24;
+
+            this.hoursCorrespondingToTimePoints = new double[(int) (maxT - minT) + 1];
+            for (int i = 0; i < this.hoursCorrespondingToTimePoints.length; i++) {
+                this.hoursCorrespondingToTimePoints[i] = minTime + i;
+            }
+            n = n.child;
+        }
+    }
 
     /**
      * Calculate the mean values for nodes and update the root model.
