@@ -52,6 +52,9 @@ class Metadata {
         }
     }
 
+    public void addAdditionalInfo(String key, String value) {
+    }
+
     class PropertyDefinition {
         // Mapping label - type - unit
         public String label;

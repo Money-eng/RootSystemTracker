@@ -22,6 +22,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class RegionAdjacencyGraphPipeline {
 
@@ -752,7 +753,7 @@ public class RegionAdjacencyGraphPipeline {
             }
             rLat.computeDistances();
             rLat.resampleFlyingPoints(rm.hoursCorrespondingToTimePoints);
-            myRprim.attachChild(rLat);
+            Objects.requireNonNull(myRprim).attachChild(rLat);
             rLat.attachParent(myRprim);
             rm.rootList.add(rLat);
         }
@@ -1295,9 +1296,8 @@ public class RegionAdjacencyGraphPipeline {
         int Xmax = sampleImgForDims.getWidth() - 1;
         int Ymax = sampleImgForDims.getHeight() - 1;
         int dMax = getDayMax(graph);
-        int deltaTimeMax = dMax;
-        int[] nEach = new int[deltaTimeMax];//This tab will count organs lying in cases by apparition timestep
-        int[] iter = new int[deltaTimeMax];
+        int[] nEach = new int[dMax];//This tab will count organs lying in cases by apparition timestep
+        int[] iter = new int[dMax];
         double ratioMinVisible = 0.4;//If a root is visible less than 40 % of its path, we reject it
 
         int nLateral = 0;
@@ -1708,8 +1708,7 @@ public class RegionAdjacencyGraphPipeline {
         int Ymax = sampleImgForDims.getHeight() - 1;
         double nbMADforOutlierRejection = 25;//Number of median absolute deviation around the median that is
         // considered outlying
-        int dMax = getDayMax(graph);
-        int deltaTimeMax = dMax;
+        int deltaTimeMax = getDayMax(graph);
         int[] nEach = new int[deltaTimeMax];//This tab will count organs lying in cases by apparition timestep
         int[] iter = new int[deltaTimeMax];
         double ratioMinVisible = 0.4;//If a root is visible less than 40 % of its path, we reject it
@@ -1772,8 +1771,8 @@ public class RegionAdjacencyGraphPipeline {
             CC ccLast = ccStart.pathFromStart.get(ccStart.pathFromStart.size() - 1);
             nTmpTot++;
             boolean debug = false;
-            String rejectionCause = "";
-            rejectionCause += "\n\n ** Computing outlier exclusion on lateral starting at " + ccStart + "\n";
+            StringBuilder rejectionCause = new StringBuilder();
+            rejectionCause.append("\n\n ** Computing outlier exclusion on lateral starting at ").append(ccStart).append("\n");
 
             //Testing statistics
             for (CC cc : ccStart.pathFromStart) {
@@ -1787,7 +1786,7 @@ public class RegionAdjacencyGraphPipeline {
 
                 int nCur = (cc.deltaTimeFromStart);
 
-                rejectionCause += "Stats at node " + nCur + " " + cc.x + "," + cc.y + " : ";
+                rejectionCause.append("Stats at node ").append(nCur).append(" ").append(cc.x).append(",").append(cc.y).append(" : ");
                 for (int i = 0; i < 6; i++) {
                     if (nCur < 2 || cc == ccLast || i == 0 || i == 2) {//TODO  check these exclusion cases. Could be
                         // good to make some statistics over
@@ -1799,11 +1798,11 @@ public class RegionAdjacencyGraphPipeline {
                         tempStd[i] = (tempVals[i] - stats[i][nCur][0]) / (stats[i][nCur][2] - stats[i][nCur][0]);
                     //Compute the number of median average dev. upon the median
                 }
-                for (int i = 0; i < 6; i++) rejectionCause += (" [" + tempStd[i] + "] ");
-                rejectionCause += "\n";
+                for (int i = 0; i < 6; i++) rejectionCause.append(" [").append(tempStd[i]).append("] ");
+                rejectionCause.append("\n");
                 for (int i = 0; i < 6; i++) {
                     if (tempStd[i] >= nbMADforOutlierRejection) {
-                        rejectionCause += ("\n Rejection at node " + nCur + " for criterion " + i + " with nb MADe= " + tempStd[i]);
+                        rejectionCause.append("\n Rejection at node ").append(nCur).append(" for criterion ").append(i).append(" with nb MADe= ").append(tempStd[i]);
                         ccStart.nonValidLatStart = true;
                     }
                 }
@@ -2635,11 +2634,10 @@ public class RegionAdjacencyGraphPipeline {
                 curCC.add(cc);
             }
         System.out.print("\nTrunk computation");
-        while (curCC.size() > 0) {
-            for (int i = 0; i < curCC.size(); i++) {
-                CC cc = curCC.get(i);
+        while (!curCC.isEmpty()) {
+            for (CC cc : curCC) {
                 cc.trunk = true;
-                if (graph.outgoingEdgesOf(cc).size() == 0) continue;
+                if (graph.outgoingEdgesOf(cc).isEmpty()) continue;
                 double minCost = 1E18;
                 ConnectionEdge bestEdge = null;
                 for (ConnectionEdge edge : graph.outgoingEdgesOf(cc)) {
@@ -2756,7 +2754,7 @@ public class RegionAdjacencyGraphPipeline {
         CC ret = null;
         double minDist = 1E8;
         for (CC cc : graph.vertexSet()) {
-            double dist = VitimageUtils.distance(x / res, y / res, cc.r.getContourCentroid()[0],
+            double dist = VitimageUtils.distance((double) x / res, (double) y / res, cc.r.getContourCentroid()[0],
                     cc.r.getContourCentroid()[1]);
             if (dist < minDist) {
                 minDist = dist;
@@ -2769,7 +2767,7 @@ public class RegionAdjacencyGraphPipeline {
     @SuppressWarnings("rawtypes")
     static class CCComparator implements java.util.Comparator {
         public int compare(Object o1, Object o2) {
-            return ((Double) ((CC) o1).x).compareTo(((CC) o2).x);
+            return Double.compare(((CC) o1).x, ((CC) o2).x);
         }
     }
 

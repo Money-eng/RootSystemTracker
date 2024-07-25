@@ -15,60 +15,20 @@ import java.util.stream.Collectors;
 
 
 /**
- * @author Xavier Draye - Universit� catholique de Louvain
- * @author Guillaume Lobet - Universit� de Li�ge
+ * Adapted from Xavier Draye - Universit� catholique de Louvain
+ *  & Guillaume Lobet - Universit� de Li�ge
+ *
+ * @author Romain Fernandez, Loaï Gandeel
  * <p>
  * Root class.
  */
 
 
 public class Root implements Comparable<Root>, IRootParser {
-
-
     /**
      * The no name.
      */
     static String noName = FSR.prefs.get("root_ID", "root_");
-    /**
-     * The axis color.
-     */
-    static Color axisColor = Color.green;
-    /**
-     * The nodes color.
-     */
-    static Color nodesColor = Color.orange;
-    /**
-     * The borders color.
-     */
-    static Color bordersColor = Color.red;
-    /**
-     * The area color.
-     */
-    static Color areaColor = Color.yellow;
-    /**
-     * The ticks color.
-     */
-    static Color ticksColor = Color.yellow;
-    /**
-     * The tips color.
-     */
-    static Color tipsColor = Color.yellow;
-    /**
-     * The child tips color.
-     */
-    static Color childTipsColor = Color.green;
-    /**
-     * The child nodes color.
-     */
-    static Color childNodesColor = Color.green;
-    /**
-     * The child axis color.
-     */
-    static Color childAxisColor = Color.yellow;
-    /**
-     * The child borders color.
-     */
-    static Color childBordersColor = Color.orange;
     /**
      * The next root key.
      */
@@ -101,34 +61,6 @@ public class Root implements Comparable<Root>, IRootParser {
      * The plant number.
      */
     public int plantNumber;
-    /**
-     * The borders GP.
-     */
-    public GeneralPath bordersGP = new GeneralPath();
-    /**
-     * The axis GP.
-     */
-    public GeneralPath axisGP = new GeneralPath();
-    /**
-     * The nodes GP.
-     */
-    public GeneralPath nodesGP = new GeneralPath();
-    /**
-     * The ticks GP.
-     */
-    public GeneralPath ticksGP = new GeneralPath();
-    /**
-     * The tips GP.
-     */
-    public GeneralPath tipsGP = new GeneralPath();
-    /**
-     * The convexhull GP.
-     */
-    public GeneralPath convexhullGP = new GeneralPath();
-    /**
-     * new.
-     */
-    public GeneralPath parallelsGP = new GeneralPath();
     /**
      * The n nodes.
      */
@@ -1065,7 +997,7 @@ public class Root implements Comparable<Root>, IRootParser {
      * @param rootID the new root ID
      */
     public void setRootID(String rootID) {
-        this.rootID = (rootID.length() == 0) ? noName : rootID;
+        this.rootID = (rootID.isEmpty()) ? noName : rootID;
         updateChildren();
     }
 
@@ -1492,7 +1424,7 @@ public class Root implements Comparable<Root>, IRootParser {
     /**
      * Checks if is child.
      *
-     * @return true if the root is child
+     * @return 1 if child 0 if not
      */
     public int isChild() {
         return isChild;
@@ -1529,7 +1461,7 @@ public class Root implements Comparable<Root>, IRootParser {
             setParentName(parent.getRootID());
             setParentKey(parent.getRootKey());
         }
-        if (childList.size() > 0) updateChildren();
+        if (!childList.isEmpty()) updateChildren();
     }
 
     public void setLabel(String label) {
@@ -1851,7 +1783,7 @@ public class Root implements Comparable<Root>, IRootParser {
      * @return childDensity the child density inside the ramified region
      */
     public float getChildDensity() {
-        if (childList.size() > 0) {
+        if (!childList.isEmpty()) {
             float dist = lPosPixelsToCm(lastChild.getDistanceFromBase() - firstChild.getDistanceFromBase());
             if (dist != 0) return childList.size() / dist;
             else return 0;
@@ -1922,8 +1854,7 @@ public class Root implements Comparable<Root>, IRootParser {
     public float getAVGInterBranchDistance() {
         float n = 0;
         int m = 0;
-        for (int i = 0; i < childList.size(); i++) {
-            Root r = childList.get(i);
+        for (Root r : childList) {
             n += r.getInterBranch();
             m++;
         }
@@ -1942,7 +1873,7 @@ public class Root implements Comparable<Root>, IRootParser {
             n = n.child;
             double B = Math.pow(((n.parent.diameter * pixelSize) / 2), 2) * Math.PI;
             double b = Math.pow(((n.diameter * pixelSize) / 2), 2) * Math.PI;
-            vol += ((n.length * pixelSize) / 3) * (B + b + Math.sqrt(B * b));
+            vol += (float) (((n.length * pixelSize) / 3) * (B + b + Math.sqrt(B * b)));
         }
         return vol;
     }
@@ -1959,7 +1890,7 @@ public class Root implements Comparable<Root>, IRootParser {
             n = n.child;
             double B = n.parent.diameter * pixelSize * Math.PI;
             double b = n.diameter * pixelSize * Math.PI;
-            surf += (n.length * pixelSize) * ((B + b) / 2);
+            surf += (float) ((n.length * pixelSize) * ((B + b) / 2));
         }
         return surf;
     }
@@ -1971,13 +1902,13 @@ public class Root implements Comparable<Root>, IRootParser {
      */
     public float getChildrenSurface() {
         float surf = 0;
-        for (int i = 0; i < childList.size(); i++) {
-            Node n = childList.get(i).firstNode;
+        for (Root root : childList) {
+            Node n = root.firstNode;
             while (n.child != null) {
                 n = n.child;
                 double B = n.parent.diameter * pixelSize * Math.PI;
                 double b = n.diameter * pixelSize * Math.PI;
-                surf += (n.length * pixelSize) * ((B + b) / 2);
+                surf += (float) ((n.length * pixelSize) * ((B + b) / 2));
             }
         }
         return surf;
@@ -1998,7 +1929,7 @@ public class Root implements Comparable<Root>, IRootParser {
      * @param rootKey the new root key
      */
     public void setRootKey(String rootKey) {
-        this.rootKey = (rootKey.length() == 0) ? noName : rootKey;
+        this.rootKey = (rootKey.isEmpty()) ? noName : rootKey;
         updateChildren();
     }
 
@@ -2065,8 +1996,8 @@ public class Root implements Comparable<Root>, IRootParser {
      */
     public float getChildrenLength() {
         float cl = 0;
-        for (int i = 0; i < childList.size(); i++) {
-            cl = cl + childList.get(i).getRootLength();
+        for (Root root : childList) {
+            cl = cl + root.getRootLength();
         }
         return cl;
     }
@@ -2077,10 +2008,10 @@ public class Root implements Comparable<Root>, IRootParser {
      * @return the children angle
      */
     public float getChildrenAngle() {
-        if (childList.size() > 0) {
+        if (!childList.isEmpty()) {
             float ang = 0;
-            for (int i = 0; i < childList.size(); i++) {
-                ang += childList.get(i).getInsertAngl();
+            for (Root root : childList) {
+                ang += root.getInsertAngl();
             }
             return ang / childList.size();
         } else return 0;
@@ -2108,7 +2039,7 @@ public class Root implements Comparable<Root>, IRootParser {
                 return Double.compare(r1.firstNode.y, r2.firstNode.y);
             }
         };
-        Collections.sort(childList, comparatorLateral);
+        childList.sort(comparatorLateral);
         return childList.toArray(new Root[childList.size()]);
     }
 
@@ -2184,8 +2115,8 @@ public class Root implements Comparable<Root>, IRootParser {
             if (n.x < min) min = n.x;
             n = n.child;
         }
-        for (int i = 0; i < childList.size(); i++) {
-            n = childList.get(i).firstNode;
+        for (Root root : childList) {
+            n = root.firstNode;
             while (n.child != null) {
                 if (n.x < min) min = n.x;
                 n = n.child;
@@ -2206,8 +2137,8 @@ public class Root implements Comparable<Root>, IRootParser {
             if (n.x > max) max = n.x;
             n = n.child;
         }
-        for (int i = 0; i < childList.size(); i++) {
-            n = childList.get(i).firstNode;
+        for (Root root : childList) {
+            n = root.firstNode;
             while (n.child != null) {
                 if (n.x > max) max = n.x;
                 n = n.child;
@@ -2228,8 +2159,8 @@ public class Root implements Comparable<Root>, IRootParser {
             if (n.y < min) min = n.y;
             n = n.child;
         }
-        for (int i = 0; i < childList.size(); i++) {
-            n = childList.get(i).firstNode;
+        for (Root root : childList) {
+            n = root.firstNode;
             while (n.child != null) {
                 if (n.y < min) min = n.y;
                 n = n.child;
@@ -2250,8 +2181,8 @@ public class Root implements Comparable<Root>, IRootParser {
             if (n.y > max) max = n.y;
             n = n.child;
         }
-        for (int i = 0; i < childList.size(); i++) {
-            n = childList.get(i).firstNode;
+        for (Root root : childList) {
+            n = root.firstNode;
             while (n.child != null) {
                 if (n.y > max) max = n.y;
                 n = n.child;
@@ -2321,8 +2252,7 @@ public class Root implements Comparable<Root>, IRootParser {
             yList.add((int) n.y);
             n = n.child;
         }
-        for (int i = 0; i < childList.size(); i++) {
-            Root r = childList.get(i);
+        for (Root r : childList) {
             n = r.firstNode;
             while (n.child != null) {
                 xList.add((int) n.x);
@@ -2350,10 +2280,8 @@ public class Root implements Comparable<Root>, IRootParser {
      */
     @Override
     public int compareTo(Root arg0) {
-        if (this.firstNode.x == arg0.firstNode.x) return 0;
-        else if (this.firstNode.x < arg0.firstNode.x) return -1;
-        else return 1;
-    }
+        return Float.compare(this.firstNode.x, arg0.firstNode.x);
+    } // TODO
 
     @Override
     public boolean equals(Object obj) {
@@ -2483,5 +2411,13 @@ public class Root implements Comparable<Root>, IRootParser {
             n = n.child;
         }
         return nodes;
+    }
+}
+
+
+class DistanceBTWRoots implements Comparator<Root> {
+    @Override
+    public int compare(Root r1, Root r2) {
+        return Double.compare(r1.getDistanceFromBase(), r2.getDistanceFromBase());
     }
 }

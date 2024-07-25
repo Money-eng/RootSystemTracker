@@ -476,6 +476,7 @@ public class PipelineActionsHandler {
         ImagePlus mask = new Duplicator().run(imgInit, 1, 1, 1, 1, 1, 1);
         mask = VitimageUtils.nullImage(mask);
         mask = VitimageUtils.drawRectangleInImage(mask, 0, 0, mask.getWidth() - 1, mask.getHeight() - 1, 255);
+        // invert the mask
         IJ.saveAsTiff(mask, new File(outputDataDir, "20_mask_for_registration.tif").getAbsolutePath());
 
         ImagePlus[] tabImg = VitimageUtils.stackToSlices(imgInit);
@@ -499,7 +500,7 @@ public class PipelineActionsHandler {
             t.log("n=" + n);
             ItkTransform trRoot = null;
             RegistrationAction regAct = new RegistrationAction().defineSettingsFromTwoImages(tabImg[n], tabImg[n + 1], null, false);
-            regAct.setLevelMaxLinear(pph.maxLinear - 1);//Test for helenen before there was a "+1"
+            regAct.setLevelMaxLinear(pph.maxLinear - 1);
             regAct.setLevelMinLinear(0);
             regAct.strideX = 8;
             regAct.strideY = 8;

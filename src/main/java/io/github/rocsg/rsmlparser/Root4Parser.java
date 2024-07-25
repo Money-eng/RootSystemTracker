@@ -44,10 +44,10 @@ public class Root4Parser implements IRootParser {
             double meanX = 0;
             double meanY = 0;
             int n = 0;
-            for (int i = 0; i < roots.size(); i++) {
-                if (roots.get(i).geometry != null) {
-                    meanX += roots.get(i).geometry.get2Dpt().get(0).getX();
-                    meanY += roots.get(i).geometry.get2Dpt().get(0).getY();
+            for (Root4Parser root : roots) {
+                if (root.geometry != null) {
+                    meanX += root.geometry.get2Dpt().get(0).getX();
+                    meanY += root.geometry.get2Dpt().get(0).getY();
                     n++;
                 }
             }

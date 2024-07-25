@@ -1191,15 +1191,15 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         double[] tabHours = currentModel.hoursCorrespondingToTimePoints;
 
         // Construct the steps/hours string
-        String s = "Steps/hours : ";
-        for (int i = 0; i < tabHours.length; i++) s += " | " + i + " -> " + VitimageUtils.dou(tabHours[i]);
+        StringBuilder s = new StringBuilder("Steps/hours : ");
+        for (int i = 0; i < tabHours.length; i++) s.append(" | ").append(i).append(" -> ").append(VitimageUtils.dou(tabHours[i]));
 
         // Calculate the mean timestep
         String s2 = "Mean timestep = " + VitimageUtils.dou(tabHours[tabHours.length - 1] / (tabHours.length - 1));
 
         // Log the start of the resampling operation, the steps/hours, and the mean timestep
         addLog("Running action \"Resample RSML\" ...", -1);
-        addLog(s, -1);
+        addLog(s.toString(), -1);
         addLog(s2, -1);
 
         // Prompt the user to select the target timestep (in hours)
@@ -2465,7 +2465,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         System.out.println("Image size: " + currentImage.getWidth() + "x" + currentImage.getHeight());
         System.exit(0);
 
-        extractedImageRepartition eir = new extractedImageRepartition(rm, currentImage, points, zoomFactor, Nt);
+        ExtractedImageRepartition eir = new ExtractedImageRepartition(rm, currentImage, points, zoomFactor, Nt);
 
         // Get the shortest and darkest path in the image
         eir.applyDarkestShortestPath();
@@ -2513,14 +2513,14 @@ class RsmlInfo {
     }
 }
 
-class extractedImageRepartition {
+class ExtractedImageRepartition {
     private final int zoomFactor;
     private final RootModel rm;
     private final Point3d[] point3d;
     private final int Nt;
     private ImagePlus image;
 
-    public extractedImageRepartition(RootModel rm, ImagePlus image, Point3d[] point3d, int zoomFactor, int Nt) {
+    public ExtractedImageRepartition(RootModel rm, ImagePlus image, Point3d[] point3d, int zoomFactor, int Nt) {
         this.rm = rm;
         this.point3d = point3d;
         this.zoomFactor = zoomFactor;

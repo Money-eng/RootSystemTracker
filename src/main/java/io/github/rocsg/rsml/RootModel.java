@@ -17,15 +17,11 @@ import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.fijiyama.registration.TransformUtils;
 import io.github.rocsg.rsmlparser.*;
-import org.apache.commons.math3.exception.DimensionMismatchException;
-import org.apache.commons.math3.ml.clustering.CentroidCluster;
-import org.apache.commons.math3.ml.clustering.Cluster;
-import org.apache.commons.math3.ml.clustering.DoublePoint;
+import org.apache.commons.math3.ml.clustering.*;
 import org.apache.commons.math3.ml.distance.DistanceMeasure;
 import org.scijava.vecmath.Point3d;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.ProcessingInstruction;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
@@ -51,34 +47,11 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author Xavier Draye and Guillaume Lobet - Université catholique de Louvain
+ * Taken from Xavier Draye and Guillaume Lobet - Université catholique de Louvain
+ * @author Romain Fernandez and Loaï gandeel
  */
-
-
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-class IdenticalDataFileFilter extends FileFilter {
-
-    String rootFName;
-
-    public IdenticalDataFileFilter(String rootFName) {
-        int l = rootFName.length();
-        int crop = l - (l / 10);
-        this.rootFName = rootFName.substring(0, crop);
-    }
-
-    public boolean accept(File f) {
-        return (f.getName().toLowerCase().endsWith("xml") && f.getName().startsWith(rootFName));
-    }
-
-    public String getDescription() {
-        return "SmartRoot Datafiles associated with " + rootFName;
-    }
-}
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -103,78 +76,7 @@ class DataFileFilterRSML extends FileFilter
 /**
  * The Class RootModel.
  */
-public class RootModel extends WindowAdapter implements IRootModelParser {
-
-
-    //START UNSAFE ZONE
-
-    /**
-     * The Constant fileSuffix.
-     */
-    public static final String[] fileSuffix = {"xml", "xml01", "xml02", "xml03", "xml04"};
-    /**
-     * The Constant fileSuffixRSML.
-     */
-    public static final String[] fileSuffixRSML = {"rsml", "rsml01", "rsml02", "rsml03", "rsml04"};
-    /**
-     * Return code from selectNode().
-     */
-    static final int NODE = 1;
-    /**
-     * The Constant ROOT.
-     */
-    static final int ROOT = 2;
-    /**
-     * The Constant CHILD.
-     */
-    static final int CHILD = 3;
-    /**
-     * The Constant PARENT.
-     */
-    static final int PARENT = 4;
-    /**
-     * The Constant CHILDPARENT.
-     */
-    static final int CHILDPARENT = 5;
-    /**
-     * Modifier flags for tracing operations.
-     */
-    static final int AUTO_TRACE = 1;
-    /**
-     * The Constant FREEZE_DIAMETER.
-     */
-    static final int FREEZE_DIAMETER = 2;
-    /**
-     * The Constant SNAP_TO_BORDER.
-     */
-    static final int SNAP_TO_BORDER = 4;
-
-
-    //END UNSAFE ZONE
-    /**
-     * The Constant THRESHOLD_ADAPTIVE1.
-     */
-    static final int THRESHOLD_ADAPTIVE1 = 1;
-    /**
-     * The Constant THRESHOLD_ADAPTIVE2.
-     */
-    static final int THRESHOLD_ADAPTIVE2 = 2;
-    /**
-     * The Constant REGULAR_TRACING.
-     */
-    static final int REGULAR_TRACING = 1;
-    /**
-     * The Constant LATERAL_TRACING.
-     */
-    static final int LATERAL_TRACING = 2;
-    /**
-     * The Constant LINE_TRACING.
-     */
-    static final int LINE_TRACING = 4;
-    /**
-     * The Constant LATERAL_TRACING_ONE.
-     */
-    static final int LATERAL_TRACING_ONE = 8;
+public class RootModel extends WindowAdapter implements Comparable<RootModel>, IRootModelParser {
     /**
      * The datafile filter RSML.
      */
@@ -987,8 +889,10 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         //Then we use comparator to sort rootList
         this.rootList.sort(comparatorPrimaries);
         int incr = 0;
-        for (int i = 0; i < this.rootList.size(); i++) {
-            if (this.rootList.get(i).order == 1) this.rootList.get(i).plantNumber = (incr++);
+        int maxOrder = 1;
+        for (Root root : this.rootList) {
+            maxOrder = Math.max(maxOrder, root.order);
+            if (root.order == 1) root.plantNumber = (incr++);
         }
 
         //Then, we order the lateral roots
@@ -1003,9 +907,11 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             r.childList.sort(comparatorLateral);
         }
 
-        for (int i = 0; i < this.rootList.size(); i++) {
-            if (this.rootList.get(i).order == 2)
-                this.rootList.get(i).plantNumber = this.rootList.get(i).getParent().plantNumber;
+        for (int i = 2; i <= maxOrder; i++) {
+            for (Root root : this.rootList) {
+                if (root.order == i)
+                    root.plantNumber = root.getParent().plantNumber;
+            }
         }
 
     }
@@ -1220,8 +1126,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      */
     public void sendRootData(ResultsTable rt, String name) {
 
-        for (int i = 0; i < rootList.size(); i++) {
-            Root r = rootList.get(i);
+        for (Root r : rootList) {
             if (!r.validate()) continue; // corrupted Root instance
             rt.incrementCounter();
             rt.addValue("image", name);
@@ -1232,7 +1137,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
             rt.addValue("volume", r.getRootVolume());
             rt.addValue("convexhull_area", r.getConvexHullArea());
             rt.addValue("diameter", r.getAVGDiameter());
-            rt.addValue("root_order", r.isChild());
+            rt.addValue("root_order", r.order); // old isChild
             rt.addValue("root_ontology", r.getPoAccession());
             rt.addValue("parent_name", r.getParentName());
             if (r.getParent() != null) rt.addValue("parent", r.getParent().getRootKey());
@@ -1276,8 +1181,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      */
     public void sendNodeData(ResultsTable rt, String name) {
 
-        for (int i = 0; i < rootList.size(); i++) {
-            Root r = rootList.get(i);
+        for (Root r : rootList) {
             if (!r.validate()) continue; // corrupted Root instance
             Node n = r.firstNode;
             do {
@@ -1291,7 +1195,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 rt.addValue("diameter", n.diameter * pixelSize);
                 rt.addValue("distance_from_base", n.cLength * pixelSize);
                 rt.addValue("distance_from_apex", (r.getRootLength() - n.cLength) * pixelSize);
-                rt.addValue("root_order", r.isChild());
+                rt.addValue("root_order", r.order); // old isChild
                 rt.addValue("root_ontology", r.getPoAccession());
             } while ((n = n.child) != null);
         }
@@ -1937,7 +1841,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
     public Object[] getClosestNodeInPrimary(Point3d pt) {
         double x = pt.x;
         double y = pt.y;
-        double distMin = 1E18;
+        double distMin = Double.MAX_VALUE;
         Node nodeMin = null;
         Root rootMin = null;
         for (Root r : rootList) {
@@ -1958,13 +1862,37 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
     public Object[] getClosesNodeParentOrder(Point3d pt, Root currentRoot) {
         double x = pt.x;
         double y = pt.y;
-        double distMin = 1E18;
-        if (currentRoot.order == 1) return new Object[]{null, null};
+        double distMin = Double.MAX_VALUE;
+        if (currentRoot.order <= 2) return getClosestNodeInPrimary(pt);
         int parentOrder = currentRoot.order - 1;
         Node nodeMin = null;
         Root rootMin = null;
         for (Root r : rootList) {
             if (r.order != parentOrder) continue;
+            Node n = r.firstNode;
+            while (n != null) {
+                double dist = Math.sqrt((x - n.x) * (x - n.x) + (y - n.y) * (y - n.y));
+                if (dist < distMin && n.birthTime <= pt.z) {
+                    distMin = dist;
+                    rootMin = r;
+                    nodeMin = n;
+                }
+                n = n.child;
+            }
+        }
+        return new Object[]{nodeMin, rootMin};
+    }
+
+    public Object[] getClosestNodeChildOrder(Point3d pt, Root currentRoot) {
+        double x = pt.x;
+        double y = pt.y;
+        double distMin = Double.MAX_VALUE;
+        if (currentRoot.order < 1) return null;
+        int childOrder = currentRoot.order + 1;
+        Node nodeMin = null;
+        Root rootMin = null;
+        for (Root r : rootList) {
+            if (r.order != childOrder) continue;
             Node n = r.firstNode;
             while (n != null) {
                 double dist = Math.sqrt((x - n.x) * (x - n.x) + (y - n.y) * (y - n.y));
@@ -2337,9 +2265,15 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      */
     public int[] nbLatsPerPlant() {
         int[] count = new int[5];
+        int maxOrder = 1;
         for (Root r : rootList) {
-            if (r.order == 2) count[r.plantNumber]++;
+            maxOrder = Math.max(maxOrder, r.order);
         }
+       for (int i = 2; i <= maxOrder; i++) {
+           for (Root r : rootList) {
+               if (r.order == i) count[r.plantNumber]++;
+           }
+       }
         return count;
     }
 
@@ -2352,7 +2286,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
      */
     public double[] getPrimDepthOverTime(int tMax, int plant) {
         double[] ret = new double[tMax];
-        for (int i = 0; i < ret.length; i++) ret[i] = -100000000;
+        Arrays.fill(ret, -1000000);
         for (Root r : rootList) {
             if (r.plantNumber != plant || r.order != 1) continue;
             Node n = r.firstNode;
@@ -2574,7 +2508,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
     /**
      * Get a list of strings containing all the name of roots having children.
      *
-     * @return a list of strings containing all the name of roots having children
+     * @return a array of strings containing all the name of roots having children
      */
     public String[] getParentRootNameList() {
         int ind = 0;
@@ -2599,7 +2533,7 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
     /**
      * Get a list of strings containing all the name of primary.
      *
-     * @return a list of strings containing all the name of primary
+     * @return an array of strings containing all the name of primary
      */
     public String[] getPrimaryRootNameList() {
         int ind = 0;
@@ -2873,21 +2807,16 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         Root r;
         Node n, n1;
         double[] coords;
-        for (int i = 0; i < rootList.size(); i++) {
-            r = rootList.get(i);
+        for (Root root : rootList) {
+            r = root;
             n = r.firstNode;
-            if (r.isChild == 1) {
-                coords = tr.transformPoint(new double[]{n.x, n.y, 0});
-                n.x += (n.x - (float) coords[0]);
-                n.y += (n.y - (float) coords[1]);
-            }
-            if (n.parent == null) {
-                coords = tr.transformPoint(new double[]{n.x, n.y, 0});
-                n.x += (n.x - (float) coords[0]);
-                n.y += (n.y - (float) coords[1]);
-            }
+            boolean transformed = false;
+
+            coords = tr.transformPoint(new double[]{n.x, n.y, 0});
+            n.x += (n.x - (float) coords[0]);
+            n.y += (n.y - (float) coords[1]);
+
             while (n.child != null) {
-                n1 = n;
                 n = n.child;
                 coords = tr.transformPoint(new double[]{n.x, n.y, 0});
                 n.x += (n.x - (float) coords[0]);
@@ -2906,8 +2835,8 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         Root r;
         Node n;
         double[] coords;
-        for (int i = 0; i < rootList.size(); i++) {
-            r = rootList.get(i);
+        for (Root root : rootList) {
+            r = root;
             n = r.firstNode;
             coords = tr.transformPoint(new double[]{n.x, n.y, 0});
             n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
@@ -2970,17 +2899,12 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         ImageProcessor ip = imgRSML.getProcessor();
 
         //draw lines and dot lines
-        int nTot = 0;
-        int nPrim = 0;
-        int nSecond = 0;
+
         /////////////////// draw lines
         for (Root r : rootList) {
             Node n = r.firstNode;
             Node n1;
             int color = (r.order == 1 ? 127 : 255);
-            if (r.order == 1) nPrim++;
-            if (r.order == 2) nSecond++;
-            nTot++;
             double rMaxDate = r.getDateMax();
             if (maxDate < rMaxDate) maxDate = rMaxDate;
             boolean timeOver = false;
@@ -3140,19 +3064,12 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         for (int z = 0; z < Z; z++) ips[z] = imgRSML.getStack().getProcessor(z + 1);
 
         //Draw lines and dots
-        int nTot = 0;
-        int nPrim = 0;
-        int nSecond = 0;
         for (Root r : rootList) {
             Node n = r.firstNode;
             Node n1;
             int lwid = (int) lineWidths[r.order - 1];
-            int color = (r.order == 1 ? 1 : 2);
+            int color = (r.order == 1 ? 1 : r.order == 2 ? 2 : 3);
             int dotEvery = lwid * 2;
-            if (r.order == 1) nPrim++;
-            if (r.order == 2) nSecond++;
-            nTot++;
-            int incr = 0;
             while (n.child != null) {
                 n1 = n;
                 n = n.child;
@@ -3858,7 +3775,6 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         root.rootKey = rootList.get(0).getLabel();
         root.label = rootList.get(0).getLabel();
         boolean first = true;
-
         for (Root4Parser root4Parser : rootList) {
             int indexPt = 0;
             for (Point2D points : root4Parser.getGeometry().get2Dpt()) {
@@ -3913,60 +3829,36 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
                 if (nodes.get(time).size() > nodes.get(timeWithMaxPoints).size()) timeWithMaxPoints = time;
             }
 
-            // make a mean out of the elements of nodes that have the same indexes in a list
-            r.firstNode = nodes.get(timeWithMaxPoints).get(0);
-            r.firstNode.parent = null;
-            r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
-            r.lastNode.child = null;
-            r.nNodes = nodes.get(timeWithMaxPoints).size();
-            Node n = r.firstNode;
-            for (int j = 1; j < r.nNodes; j++) {
-                double meanX = 0;
-                double meanY = 0;
-                float minT = Float.MAX_VALUE;
-                float maxT = Float.MIN_VALUE;
-                int sizeNum = 0;
-                for (float key : nodes.keySet()) {
-                    try {
-                        meanX += nodes.get(key).get(j).x;
-                        meanY += nodes.get(key).get(j).y;
-                        minT = Math.min(key, minT);
-                        maxT = Math.max(key, maxT);
-                        sizeNum++;
-                    } catch (IndexOutOfBoundsException e) {
-                        continue;
-                    }
-                }
-                meanX /= sizeNum;
-                meanY /= sizeNum;
+            //calculateNodeKMeans(r, nodes, timeWithMaxPoints, minTime);
 
-                n.x = (float) meanX;
-                n.y = (float) meanY;
-                n.birthTime = minT;
-                n.birthTimeHours = minT * 24;
+            // Call the new function to process nodes and calculate means
+            calculateNodeMeans(r, nodes, timeWithMaxPoints, minTime);
 
-                this.hoursCorrespondingToTimePoints = new double[(int) (maxT - minT) + 1];
-                for (int i = 0; i < this.hoursCorrespondingToTimePoints.length; i++) {
-                    this.hoursCorrespondingToTimePoints[i] = minTime + i;
-                }
-
-                n = n.child;
-                if (n == null) {
-                    break;
-                }
-            }
             nodes.clear();
         }
 
-        // Free memory
-        System.gc();
-
         for (Root r : this.rootList) {
-            if (r.order == 2) { // TODO generalize
-                r.firstNode.parent = (Node) getClosestNodeInPrimary(new Point3d(r.firstNode.x, r.firstNode.y, r.firstNode.birthTime))[0];
-                r.parent = (Root) getClosestNodeInPrimary(new Point3d(r.firstNode.x, r.firstNode.y, r.firstNode.birthTime))[1];
+            if (r.order >= 2) { // TODO generalize
+                Object[] result = getClosesNodeParentOrder(new Point3d(r.firstNode.x, r.firstNode.y, r.firstNode.birthTime), r);
+                r.firstNode.parent =(Node) result[0];
+                r.parentNode = (Node) result[0];
+                r.parent = (Root) result[1];
                 r.firstNode.parent.birthTime = Math.min(r.firstNode.birthTime, r.firstNode.parent.birthTime);
                 r.firstNode.isInsertionPoint = true;
+            }
+        }
+
+        for (Root r1 : rootList) {
+            if (r1.childList != null) {
+                // empty the child list
+                r1.childList.clear();
+
+                // add the child to the parent
+                for (Root r2 : rootList) {
+                    if (r2.parent != null && r2.parent.equals(r1)) {
+                        r1.childList.add(r2);
+                    }
+                }
             }
         }
 
@@ -3975,25 +3867,132 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         this.standardOrderingOfRoots();
         this.cleanWildRsml();
 
+        // Free memory
+        System.gc();
     }
 
-    // Helper method to draw clusters on the image
-    private void drawClustersOnImage(ImagePlus image, List<CentroidCluster<DoublePoint>> clusters) {
-        // Iterate through each cluster and draw points
-        for (int clusterIndex = 0; clusterIndex < clusters.size(); clusterIndex++) {
-            Cluster<DoublePoint> cluster = clusters.get(clusterIndex);
-            image.getProcessor().setColor(new Color((int) (Math.random() * 255), (int) (Math.random() * 255), (int) (Math.random() * 255)));
-            for (DoublePoint point : cluster.getPoints()) {
-                System.out.println("Cluster " + clusterIndex + " : " + point.getPoint()[0] + " " + point.getPoint()[1] + " " + point.getPoint()[2]);
-                image.getProcessor().drawOval((int) point.getPoint()[0], (int) point.getPoint()[1], 4, 4);
+    /**
+     * Calculate the mean values for nodes and update the root model.
+     */
+    private void calculateNodeMeans(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
+        r.firstNode = nodes.get(timeWithMaxPoints).get(0);
+        r.firstNode.parent = null;
+        r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
+        r.lastNode.child = null;
+        r.nNodes = nodes.get(timeWithMaxPoints).size();
+        Node n = r.firstNode;
+        for (int j = 1; j < r.nNodes - 1; j++) {
+            double meanX = 0;
+            double meanY = 0;
+            float minT = Float.MAX_VALUE;
+            float maxT = Float.MIN_VALUE;
+            int sizeNum = 0;
+            for (float key : nodes.keySet()) {
+                try {
+
+                    meanX += nodes.get(key).get(j).x;
+                    meanY += nodes.get(key).get(j).y;
+
+                    minT = Math.min(key, minT);
+                    maxT = Math.max(key, maxT);
+
+                    sizeNum++;
+                } catch (IndexOutOfBoundsException e) {
+                    continue;
+                }
+            }
+            meanX /= sizeNum;
+            meanY /= sizeNum;
+
+            if (minT == Float.MAX_VALUE) {
+                System.out.println("Error: minT is still Float.MAX_VALUE");
+            }
+            n.x = (float) meanX;
+            n.y = (float) meanY;
+            n.birthTime = minT;
+            n.birthTimeHours = minT * 24;
+
+            this.hoursCorrespondingToTimePoints = new double[(int) (maxT - minT) + 1];
+            for (int i = 0; i < this.hoursCorrespondingToTimePoints.length; i++) {
+                this.hoursCorrespondingToTimePoints[i] = minTime + i;
+            }
+            n = n.child;
+        }
+    }
+
+
+    /**
+     * Calculate the mean values for nodes and update the root model.
+     */
+    private void calculateNodeKMeans(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
+        List<DoublePoint> points = new ArrayList<>();
+        for (float time : nodes.keySet()) {
+            for (Node node : nodes.get(time)) { // , node.birthTime
+                points.add(new DoublePoint(new double[]{node.x, node.y, node.birthTime, nodes.get(time).indexOf(node)}));
             }
         }
-        // Draw centroids in red
-        image.getProcessor().setColor(Color.red);
-        for (CentroidCluster<DoublePoint> cluster : clusters) {
-            image.getProcessor().drawOval((int) cluster.getCenter().getPoint()[0], (int) cluster.getCenter().getPoint()[1], 4, 4);
+        // (int) Math.floor((((float)points.size()) / nodes.keySet().size())) + 1
+        Clusterer<DoublePoint> clusterer = new KMeansPlusPlusClusterer<>(nodes.get(timeWithMaxPoints).size(), 1000, new CustomDistance());
+        List<? extends Cluster<DoublePoint>> clusters = clusterer.cluster(points);
+
+        Map<DoublePoint, DoublePoint> minTime2Center = new HashMap<>();
+        for (Cluster<DoublePoint> cluster : clusters) {
+            // center is the mean of the cluster
+            DoublePoint center = new DoublePoint(new int[]{0, 0, 0, 0});
+            for (DoublePoint point : cluster.getPoints()) {
+                center.getPoint()[0] += point.getPoint()[0];
+                center.getPoint()[1] += point.getPoint()[1];
+                center.getPoint()[2] += point.getPoint()[2];
+                center.getPoint()[3] += point.getPoint()[3];
+            }
+            center.getPoint()[0] /= cluster.getPoints().size();
+            center.getPoint()[1] /= cluster.getPoints().size();
+            center.getPoint()[2] /= cluster.getPoints().size();
+            center.getPoint()[3] /= cluster.getPoints().size();
+
+            // associating the point with mintime to center
+            DoublePoint mintime = cluster.getPoints().get(0);
+            for (DoublePoint point : cluster.getPoints()) {
+                if (point.getPoint()[2] < mintime.getPoint()[2]) mintime = point;
+            }
+            minTime2Center.put(mintime, center);
         }
-        image.updateAndDraw();
+
+        Node n = r.firstNode;
+        n.parent = null;
+        int size = minTime2Center.keySet().size();
+        for (int i = 0; i < size; i++) {
+            // get the list of nodes with the lowest index
+            List<DoublePoint> nodesWithLowestIndex = new ArrayList<>();
+            for (DoublePoint point : minTime2Center.keySet()) {
+                if (point.getPoint()[2] == minTime2Center.keySet().stream().sorted(Comparator.comparingDouble(o -> o.getPoint()[2])).min(Comparator.comparingDouble(o -> o.getPoint()[2])).get().getPoint()[2]) {
+                    nodesWithLowestIndex.add(point);
+                }
+            }
+
+            // getting the lowest time -> lowest index -> further up position
+            DoublePoint nodeWithLowestTime = nodesWithLowestIndex.get(0);
+            for (DoublePoint point : nodesWithLowestIndex) {
+                if (point.getPoint()[3] < nodeWithLowestTime.getPoint()[3]) nodeWithLowestTime = point;
+                else if (point.getPoint()[3] == nodeWithLowestTime.getPoint()[3]) {
+                    if (point.getPoint()[1] < nodeWithLowestTime.getPoint()[1]) nodeWithLowestTime = point;
+                }
+            }
+
+            n.x = (float) minTime2Center.get(nodeWithLowestTime).getPoint()[0];
+            n.y = (float) minTime2Center.get(nodeWithLowestTime).getPoint()[1];
+            n.birthTime = (float) nodeWithLowestTime.getPoint()[2];
+            n.birthTimeHours = (float) nodeWithLowestTime.getPoint()[2] * 24;
+            n = n.child;
+            nodesWithLowestIndex.clear();
+            minTime2Center.remove(nodeWithLowestTime);
+        }
+        n = n.parent;
+        Objects.requireNonNull(n).child = null;
+        r.nNodes = size;
+        r.lastNode = n;
+        r.lastNode.child = null;
+
     }
 
     public Map<Root, List<Node>> getInsertionPoints() {
@@ -4017,4 +4016,25 @@ public class RootModel extends WindowAdapter implements IRootModelParser {
         return this.insertionPointsMap;
     }
 
+    @Override
+    public int compareTo(RootModel o) {
+        return 0; // TODO
+    }
+}
+
+// new distance measure DistanceMeasure
+class CustomDistance implements DistanceMeasure {
+    @Override
+    public double compute(double[] a, double[] b) {
+        if ((a[3] == b[3])) return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
+        else if (a[2] == b[2]) return (Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2)) * Math.pow(a[3] - b[3], 2));
+        else return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2)) * Math.pow(a[3] - b[3], 2) * Math.pow(a[2] - b[2], 2);
+    }
+}
+
+class DistanceBTWRootModels implements  Comparator<RootModel> {
+    @Override
+    public int compare(RootModel o1, RootModel o2) {
+        return 0;
+    }
 }
