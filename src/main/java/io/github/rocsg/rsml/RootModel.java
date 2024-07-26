@@ -3849,8 +3849,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             //calculateNodeKMeans(r, nodes, timeWithMaxPoints, minTime);
 
             // Call the new function to process nodes and calculate means
-            if (r.order == 1) calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
-            else calculateNodeMin(r, nodes, timeWithMaxPoints, minTime);
+            calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMeans(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMin(r, nodes, timeWithMaxPoints, minTime);
