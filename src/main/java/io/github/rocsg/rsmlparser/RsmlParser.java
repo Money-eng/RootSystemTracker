@@ -30,7 +30,7 @@ public class RsmlParser {
         this.path2RSMLs = path2RSMLs;
 
         RSMLFileUtils.backupStrategy = SelectionStrategy.LAST_VERSION;
-        strategy = SelectionStrategy.MOST_COMPLEXITY;
+        strategy = SelectionStrategy.CLOSEST_PIXEL_VALUE;
     }
 
     public static void main(String[] args) throws IOException {
@@ -59,9 +59,6 @@ public class RsmlParser {
      * @param dateOfFile  The date of the rsml file
      */
     private static void parseRoots(NodeList rootList, Plant parentPlant, Root4Parser parentRoot, int order, String dateOfFile) { // TODO : we assumed 2nd order root max
-        if (order == 1) {
-            System.out.println("Roots : " + rootList.getLength());
-        }
         for (int i = 0; i < rootList.getLength(); i++) {
             org.w3c.dom.Node rootNode = rootList.item(i);
 
@@ -128,10 +125,6 @@ public class RsmlParser {
                 parseRoots(childRoots, parentPlant, root, order + 1, dateOfFile);
             }
         }
-        if (order == 1) {
-            System.out.println("Roots : " + rootList.getLength());
-        }
-
         List<String> listID = parentPlant.getListID();
         List<Root4Parser> list2Remove = new ArrayList<>();
         for (Root4Parser root : parentPlant.roots) {
@@ -143,9 +136,6 @@ public class RsmlParser {
                 }
             }
         }
-        if (order == 1) {
-            System.out.println("Roots : " + rootList.getLength());
-        }
         parentPlant.roots.removeAll(list2Remove);
 
         // for the first order roots of plant, keep only the first 2 functions
@@ -153,9 +143,6 @@ public class RsmlParser {
             if (root.functions.size() > Root4Parser.numFunctions) {
                 root.functions.subList(2, root.functions.size()).clear();
             }
-        }
-        if (order == 1) {
-            System.out.println("Roots : " + rootList.getLength());
         }
     }
 
@@ -183,8 +170,6 @@ public class RsmlParser {
      * @return A TreeMap with the date as key and the list of rsml infos as value
      */
     public static Map<LocalDate, List<IRootModelParser>> getRSMLsInfos(Path folderPath) {
-        // check the uniqueness of the rsml files
-        Stack<String> keptRsmlFiles = RSMLFileUtils.checkUniquenessRSMLs(folderPath, strategy);
 
         // get Date of each rsml (that supposetly match the image date) // TODO generalize
         ConcurrentHashMap<String, LocalDate> fileDates = new ConcurrentHashMap<>();
@@ -200,6 +185,10 @@ public class RsmlParser {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        // check the uniqueness of the rsml files
+        Stack<String> keptRsmlFiles = RSMLFileUtils.checkUniquenessRSMLs(folderPath, fileDates, strategy);
+
 
         Map<LocalDate, List<IRootModelParser>> rsmlInfos = new TreeMap<>();
 

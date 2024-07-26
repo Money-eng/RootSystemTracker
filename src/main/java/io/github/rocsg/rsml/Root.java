@@ -635,7 +635,7 @@ public class Root implements Comparable<Root>, IRootParser {
      *
      * @return the number of individual modifications applied during correction
      */
-    public int resampleFlyingPoints(double[] hoursCorrespondingToTimePoints) {
+    public int resampleFlyingPointsOLD(double[] hoursCorrespondingToTimePoints) {
         int stamp = 1000000;
         boolean debug = false;
         if (debug) System.out.println("Root before update :");
@@ -713,6 +713,124 @@ public class Root implements Comparable<Root>, IRootParser {
         }
 
         if (debug) System.out.println();
+        return stamp;
+    }
+
+    /**
+     * NEW ASSUMPTION, the root is not necessarily increasing its number of nodes, it can also stagnate.
+     * Resample flying points.
+     * Updating a tree-like data structure by finding any "flying points" (i.e. points that are not present in the tree at certain times)
+     * These points are then added to the tree at the appropriate time.
+     *
+     * @return the number of individual modifications applied during correction
+     */
+    public int resampleFlyingPoints(double[] hoursCorrespondingToTimePoints) {
+        int stamp = 1000000;
+        boolean debug = false;
+
+        if (debug) {
+            System.out.println("Root before update :");
+            System.out.println(this.stringNodes());
+            System.out.println("Processing flying points on root " + this);
+        }
+
+        // Collect all nodes into an array list
+        ArrayList<Node> nodeList = new ArrayList<>();
+        Node currentNode = firstNode;
+        while (currentNode != null) {
+            nodeList.add(currentNode);
+            currentNode = currentNode.child;
+        }
+
+        int N = nodeList.size();
+        Node[] tabNode = nodeList.toArray(new Node[N]);
+
+        // Determine the time range
+        int tStart = (int) Math.ceil(firstNode.birthTime);
+        int tStop = (int) Math.floor(lastNode.birthTime);
+
+        // Initialize arrays to track exact times and flying points
+        int[] indexT = new int[tStop + 1];
+        boolean[] tabExact = new boolean[N];
+        boolean[] isNotFlying = new boolean[tStop + 1];
+
+        HashSet<Integer> times = new HashSet<>();
+        // Mark exact times and non-flying points
+        for (int i = 0; i < N; i++) {
+            tabExact[i] = (Math.abs(tabNode[i].birthTime - Math.round(tabNode[i].birthTime)) < VitimageUtils.EPSILON);
+            times.add((int) tabNode[i].birthTime);
+            if (tabExact[i]) {
+                int tt = (int) Math.round(tabNode[i].birthTime);
+                indexT[tt] = i;
+                isNotFlying[tt] = true;
+            }
+        }
+
+        // Process each time point to detect flying points
+        // changes with time values!
+        for (int t : times) {
+            if (isNotFlying[t]) continue;
+
+            stamp += 1;
+
+            if (debug) System.out.println("\n\nDetected flying time : " + t);
+
+            // Find the last node before time t
+            Node lastBef = null;
+            for (int i = 0; i < N; i++) {
+                if (tabNode[i].birthTime < t) lastBef = tabNode[i];
+            }
+
+            if (debug) System.out.println("Last bef detected=" + lastBef);
+
+            // Find the first node after time t
+            Node firstAft = null;
+            for (int i = N - 1; i >= 0; i--) {
+                if (tabNode[i].birthTime > t) firstAft = tabNode[i];
+            }
+
+            if (debug) System.out.println("first aft detected=" + firstAft);
+
+            // Calculate the position of the new node
+            double DT = lastBef.birthTime - firstAft.birthTime;
+            double DX = lastBef.x - firstAft.x;
+            double DY = lastBef.y - firstAft.y;
+            double dt = t - lastBef.birthTime;
+            double dx = DX * dt / DT;
+            double dy = DY * dt / DT;
+
+            // Create a new node
+            Node newNode = new Node(lastBef.x + (float) dx, lastBef.y + (float) dy, lastBef, true);
+            newNode.birthTime = t;
+            newNode.birthTimeHours = (float) hoursCorrespondingToTimePoints[t];
+
+            // Link the new node into the tree
+            lastBef.child = newNode;
+            newNode.parent = lastBef;
+            newNode.child = firstAft;
+            firstAft.parent = newNode;
+            nNodes++;
+
+            // Update the node list
+            nodeList = new ArrayList<>();
+            currentNode = firstNode;
+            while (currentNode != null) {
+                nodeList.add(currentNode);
+                currentNode = currentNode.child;
+            }
+            N = nodeList.size();
+            tabNode = nodeList.toArray(new Node[N]);
+
+            if (debug) {
+                System.out.println("Adding node " + newNode);
+                System.out.println("Root after update :");
+                System.out.println(this.stringNodes());
+                System.out.println();
+            }
+        }
+
+        if (debug) System.out.println();
+
         return stamp;
     }
 

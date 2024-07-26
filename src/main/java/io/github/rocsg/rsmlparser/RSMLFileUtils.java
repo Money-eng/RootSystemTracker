@@ -1,6 +1,9 @@
 package io.github.rocsg.rsmlparser;
 
+import ij.ImagePlus;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -12,7 +15,9 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +33,7 @@ enum SelectionStrategy {
     MOST_RECENT_TIMESTAMP,
     MOST_COMPLEXITY,
     LEAST_DUPLICATES,
+    CLOSEST_PIXEL_VALUE,
     RANDOM
 }
 
@@ -46,27 +52,55 @@ public class RSMLFileUtils {
      * @param strategy   the selection strategy to use
      * @return a stack of selected RSML file paths
      */
-    public static Stack<String> checkUniquenessRSMLs(Path folderPath, SelectionStrategy strategy) {
+    public static Stack<String> checkUniquenessRSMLs(Path folderPath, ConcurrentHashMap<String, LocalDate> dates, SelectionStrategy strategy) {
         try {
             Map<String, List<Path>> groupedFiles = Files.list(folderPath)
                     .filter(path -> path.toString().matches(".*\\.(rsml|rsml\\d{2})$"))
                     .collect(Collectors.groupingBy(path -> path.toString().split("\\.")[0]));
 
             Stack<String> keptRsmlFiles = new Stack<>();
+            Stack<Path> removedRsmlFiles = new Stack<>();
 
-            // validate and normalize the RSML files
+            // validate every single RSML files
             for (List<Path> paths : groupedFiles.values()) {
                 for (Path path : paths) {
                     if (!validateRSMLFile(path)) {
                         System.err.println("Invalid RSML file: " + path);
-                        continue;
+                        removedRsmlFiles.add(path);
                     }
-                    normalizeRSMLFile(path);
+                    //normalizeRSMLFile(path);
+                }
+            }
+            // remove all invalid files from the groupedFiles
+            for (Path path : removedRsmlFiles) {
+                for (List<Path> paths : groupedFiles.values()) {
+                    paths.remove(path);
+                }
+            }
+            // checking that no dates are being forgotten by getting the paths that don't have a date in the dates map
+            for (List<Path> paths : groupedFiles.values()) {
+                for (Path path : paths) {
+                    if (!dates.containsKey(path.toString())) {
+                        System.err.println("No date found for file: " + path);
+                        System.exit(0);
+                    }
                 }
             }
 
             for (List<Path> paths : groupedFiles.values()) {
-                Path selectedFile = selectFile(paths, strategy);
+                ImagePlus image = null;
+                double targetValue = 0.0;
+                if (strategy == SelectionStrategy.CLOSEST_PIXEL_VALUE || backupStrategy == SelectionStrategy.CLOSEST_PIXEL_VALUE) {
+                    // path to image is path to rsml file with .png extension instead of .rsml
+                    String imagePath = paths.get(0).toString().replace(".rsml", ".jpg");
+                    // load the image with the lib imageio
+                    image = new ImagePlus(imagePath);
+                    // convert the image to 32 bit image
+                    image.getProcessor().convertToFloat();
+                    // get the target value
+                    targetValue = 0.0; // TODO : generalize
+                }
+                Path selectedFile = selectFile(paths, strategy, image, targetValue);
                 keptRsmlFiles.add(selectedFile.toString());
             }
 
@@ -83,7 +117,7 @@ public class RSMLFileUtils {
      * @param strategy the selection strategy to use
      * @return the selected file path
      */
-    private static Path selectFile(List<Path> paths, SelectionStrategy strategy) {
+    private static Path selectFile(List<Path> paths, SelectionStrategy strategy, ImagePlus image, double targetValue) {
         switch (strategy) {
             case LAST_VERSION:
                 return paths.stream().max(Comparator.comparingInt(RSMLFileUtils::extractVersion)).orElseThrow(NoSuchElementException::new);
@@ -105,6 +139,8 @@ public class RSMLFileUtils {
                 return resolveTie(paths, SelectionStrategy.LEAST_DUPLICATES);
             case RANDOM:
                 return paths.get(new Random().nextInt(paths.size()));
+            case CLOSEST_PIXEL_VALUE: // Handle new strategy
+                return resolveTie(paths, SelectionStrategy.CLOSEST_PIXEL_VALUE, image, targetValue);
             default:
                 throw new IllegalArgumentException("Unknown selection strategy: " + strategy);
         }
@@ -118,10 +154,10 @@ public class RSMLFileUtils {
      * @return the selected file path
      */
     private static Path resolveTie(List<Path> paths, SelectionStrategy primaryStrategy) {
-        List<Path> filteredPaths = applyCriterion(paths, primaryStrategy);
+        List<Path> filteredPaths = applyCriterion(paths, primaryStrategy, null, 0.0);
 
         if (filteredPaths.size() > 1) {
-            return selectFile(filteredPaths, backupStrategy);
+            return selectFile(filteredPaths, backupStrategy, null, 0.0);
         }
 
         return filteredPaths.isEmpty() ? paths.get(0) : filteredPaths.get(0);
@@ -136,7 +172,7 @@ public class RSMLFileUtils {
      * @return the selected file path
      */
     private static Path resolveTie(List<Path> paths, SelectionStrategy primaryStrategy, SelectionStrategy secondaryStrategy) {
-        List<Path> filteredPaths = applyCriterion(paths, primaryStrategy);
+        List<Path> filteredPaths = applyCriterion(paths, primaryStrategy, null, 0.0);
 
         if (filteredPaths.size() > 1) {
             return resolveTie(filteredPaths, secondaryStrategy);
@@ -146,13 +182,44 @@ public class RSMLFileUtils {
     }
 
     /**
+     * Resolves a tie by applying the primary and backup strategies.
+     * This method is used for the CLOSEST_PIXEL_VALUE strategy.
+     *
+     * @param paths           the list of file paths
+     * @param primaryStrategy the primary selection strategy to use
+     * @param image           the image to extract pixel values from
+     * @param targetValue     the target pixel value
+     * @return the selected file path
+     */
+    private static Path resolveTie(List<Path> paths, SelectionStrategy primaryStrategy, ImagePlus image, double targetValue) {
+        List<Path> filteredPaths = applyCriterion(paths, primaryStrategy, image, targetValue);
+
+        if (filteredPaths.size() > 1) {
+            return selectFile(filteredPaths, backupStrategy, image, targetValue);
+        }
+
+        return filteredPaths.isEmpty() ? paths.get(0) : filteredPaths.get(0);
+    }
+
+    private static Path resolveTie(List<Path> paths, SelectionStrategy primaryStrategy, SelectionStrategy secondaryStrategy, ImagePlus image, double targetValue) {
+        List<Path> filteredPaths = applyCriterion(paths, primaryStrategy, image, targetValue);
+
+        if (filteredPaths.size() > 1) {
+            return selectFile(filteredPaths, secondaryStrategy, image, targetValue);
+        }
+
+        return filteredPaths.isEmpty() ? paths.get(0) : filteredPaths.get(0);
+    }
+
+
+    /**
      * Applies the given selection strategy to the list of paths.
      *
      * @param paths    the list of file paths
      * @param strategy the selection strategy to use
      * @return the list of paths that match the criterion
      */
-    private static List<Path> applyCriterion(List<Path> paths, SelectionStrategy strategy) {
+    private static List<Path> applyCriterion(List<Path> paths, SelectionStrategy strategy, ImagePlus image, double targetValue) {
         switch (strategy) {
             case MOST_LINES:
             case MOST_LINES_LEAST_ZEROS:
@@ -191,6 +258,13 @@ public class RSMLFileUtils {
                         .min(Comparator.comparingInt(Map.Entry::getKey))
                         .map(Map.Entry::getValue)
                         .orElseThrow(NoSuchElementException::new);
+            case CLOSEST_PIXEL_VALUE: // Handle new strategy
+                return paths.stream()
+                        .collect(Collectors.groupingBy(path -> calculateMinimumDistanceToTargetPixelValue(path, image, targetValue)))
+                        .entrySet().stream()
+                        .min(Comparator.comparingDouble(Map.Entry::getKey))
+                        .map(Map.Entry::getValue)
+                        .orElseThrow(NoSuchElementException::new);
             default:
                 throw new IllegalArgumentException("Unknown selection strategy: " + strategy);
         }
@@ -221,6 +295,45 @@ public class RSMLFileUtils {
                 throw new IllegalArgumentException("Unknown selection strategy: " + strategy);
         }
     }
+
+    /**
+     * Calculate the minimum distance between the pixel values of an image and a target value.
+     * The distance is calculated as the absolute difference between the pixel value and the target value.
+     * The minimum distance is the smallest distance found in the RSML file.
+     *
+     * @param rsmlPath    the path to the RSML file
+     * @param image       the image to extract pixel values from
+     * @param targetValue the target pixel value
+     * @return the minimum distance to the target pixel value
+     */
+    private static double calculateMinimumDistanceToTargetPixelValue(Path rsmlPath, ImagePlus image, double targetValue) {
+        try {
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(rsmlPath.toFile());
+
+            NodeList pointNodes = doc.getElementsByTagName("point");
+            double minDistance = Double.MAX_VALUE;
+
+            for (int i = 0; i < pointNodes.getLength(); i++) {
+                Element pointElement = (Element) pointNodes.item(i);
+                int x = (int) Double.parseDouble(pointElement.getAttribute("x"));
+                int y = (int) Double.parseDouble(pointElement.getAttribute("y"));
+                // get pixel value for an 8 or 32 bit image
+                int pixelValue = image.getProcessor().getPixel(x, y);
+
+                double distance = Math.abs(pixelValue - targetValue);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                }
+            }
+
+            return minDistance;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     /**
      * Gets the last modified timestamp of a file.
@@ -325,6 +438,8 @@ public class RSMLFileUtils {
      */
     public static boolean validateRSMLFile(Path filePath) {
         try {
+            // Basic validation checks for the presence of required elements
+
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
             Document doc = dBuilder.parse(filePath.toFile());
@@ -340,8 +455,35 @@ public class RSMLFileUtils {
                 return false;
             }
 
-            // Additional validation logic here
+            if (doc.getElementsByTagName("plant").getLength() == 0) {
+                System.err.println("Missing plant in file: " + filePath);
+                return false;
+            }
 
+            if (doc.getElementsByTagName("root").getLength() == 0) {
+                System.err.println("Missing root in file: " + filePath);
+                return false;
+            }
+
+            // Checking the structure of the file attributes
+            NodeList nodeList = doc.getElementsByTagName("root");
+            for (int i = 0; i < nodeList.getLength(); i++) {
+                org.w3c.dom.Node node = nodeList.item(i);
+                if (node.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
+                    Element element = (Element) node;
+                    // if the root has as ownernode name "plant" but has the attribute "label" containing "lat", then return false
+                    if (element.getAttribute("label").contains("lat") && element.getParentNode().getNodeName().equals("plant")) {
+                        System.err.println("Invalid lateral root in file: " + filePath);
+                        return false;
+                    }
+
+                    // if the root has name "root" and has "label" containing "root" but has as ownernode another root, then return false
+                    if (element.getAttribute("label").contains("root") && element.getParentNode().getNodeName().equals("root")) {
+                        System.err.println("Invalid primary root in file: " + filePath); // TODO : never tested
+                        return false;
+                    }
+                }
+            }
             return true;
         } catch (Exception e) {
             System.err.println("Error validating file: " + filePath);
@@ -351,6 +493,7 @@ public class RSMLFileUtils {
     }
 
     /**
+     * DANGER
      * Normalize the RSML file by reformatting it and removing unnecessary whitespace.
      *
      * @param filePath The path to the RSML file to normalize

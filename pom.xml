@@ -208,53 +208,11 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- 	<dependency>
-               <groupId>com.manyangled</groupId>
-               <artifactId>snowball</artifactId>
-               <version>0.3.0</version>
-           </dependency>
-
-           <dependency>
-             <groupId>com.manyangled</groupId>
-             <artifactId>gibbous</artifactId>
-             <version>0.3.0</version>
-             <type>pom</type>
-           </dependency>
-           -->
         <dependency>
             <groupId>com.goebl</groupId>
             <artifactId>simplify</artifactId>
             <version>1.0.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.jgrapht/jgrapht-opt -->
-        <!-- https://mvnrepository.com/artifact/org.apache.poi/poi -->
-
-        <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-imaging -->
-        <!--<dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-imaging</artifactId>
-            <version>1.0-alpha2</version>
-        </dependency>-->
-        <!--
-                <dependency>
-                    <groupId>org.apache.poi</groupId>
-                    <artifactId>poi-ooxml</artifactId>
-                    <version>3.17</version>
-                </dependency>-->
-
-        <!-- h 	<parent>
-        <groupId>org.scijava</groupId>
-        <artifactId>pom-scijava</artifactId>
-        <version>30.0.0</version>
-    </parent>
-        ttps://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
-        <!--<dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <scope>test</scope>
-        </dependency>-->
-
-        <!-- https://mvnrepository.com/artifact/org.itk.simple/simpleitk -->
 
         <dependency>
             <groupId>com.google.zxing</groupId>
@@ -267,27 +225,5 @@
             <version>3.5.1</version>
         </dependency>
 
-
-        <!-- https://mvnrepository.com/artifact/sc.fiji/Trainable_Segmentation -->
-        <!--<dependency>
-            <groupId>sc.fiji</groupId>
-            <artifactId>Trainable_Segmentation</artifactId>
-        </dependency>
-        -->
-        <!-- https://mvnrepository.com/artifact/com.github.mcib3d/mcib3d-core -->
-        <!-- <dependency>
-            <groupId>com.github.mcib3d</groupId>
-            <artifactId>mcib3d-core</artifactId>
-            <version>master-47119b6729-1</version>
-        </dependency>-->
-
-        <!-- https://mvnrepository.com/artifact/org.scijava/scijava-java3d -->
     </dependencies>
-
-
-    <!--<dependencyManagement>
-                <dependencies>
-    </dependencies>
-
-    </dependencyManagement>-->
 </project>
