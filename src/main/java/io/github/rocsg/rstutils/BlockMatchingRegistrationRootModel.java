@@ -12,8 +12,6 @@ import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.fijiyamaplugin.RegistrationAction;
 import io.github.rocsg.fijiyama.registration.*;
 import io.github.rocsg.rsml.FSR;
-import io.github.rocsg.rsml.Node;
-import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
 import math3d.Point3d;
 import org.itk.simple.DisplacementFieldTransform;
@@ -35,7 +33,8 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
     static ImagePlus realImageRef;
     static ImagePlus realImageMov;
     private final String info = "";
-    public boolean isRsml = false;
+    public boolean isRsml = true;
+    public boolean isRootModel = true;
     // tool copy
     boolean waitBeforeStart = false;
     Image[] currentField;
@@ -271,7 +270,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         RootModel rootModel = new RootModel(VitimageUtils.withoutExtension(pathToImgRef) + ".rsml");
         rootModel.refineDescription(10);
         rootModel.attachLatToPrime();
-        ImagePlus imgMov = multiPlongement(imgRef, rootModel, false); // TODO Faire attention à la présence de RSML
+        ImagePlus imgMov = plongement(imgRef, rootModel, false); // TODO Faire attention à la présence de RSML
         RegistrationAction regAct = RegistrationAction.defineSettingsForRSML(imgRef);
         //regAct.typeAutoDisplay = 2;
         BlockMatchingRegistration br = BlockMatchingRegistration.setupBlockMatchingRegistration(imgRef, imgMov, regAct);
@@ -281,6 +280,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         if (!display) bm.imageJOutputActivated = false;
         //bm.waitBeforeStart=false;
         // bm.updateViews(0, 0, 0, "Start");
+        bm.transformationType = Transform3DType.RIGID;
         bm.displayRegistration = display ? 2 : 0;
         bm.minBlockVariance = 0.05;
         bm.minBlockScore = 0.01;
@@ -447,8 +447,8 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         }
     }
 
-    public RootModel setupAndRunRsmlBlockMatchingRegistration(RootModel rootModel, ImagePlus imageRef) {
-        ImagePlus imgRef = imageRef;
+    public static RootModel setupAndRunRsmlBlockMatchingRegistration(RootModel rootModel, ImagePlus imageRef, boolean display) {
+        /*ImagePlus imgRef = imageRef;
         imgRef = VitimageUtils.resize(imgRef, imgRef.getWidth(), imgRef.getHeight(), imgRef.getStackSize());
         // the number of blocks will be the number of blocks of an image of size determined by the boundaries of the rootmodel
 
@@ -521,7 +521,33 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         // inverse the linear transform
         linearTransform = ItkTransform.estimateBestTranslation3D(newPos, oldPos);
         rt.applyTransformToGeometry(linearTransform);
-        return rt;
+        return rt;*/
+
+        System.out.println("imgRef = " + imageRef + " width=" + imageRef.getWidth() + " height=" + imageRef.getHeight());
+        rootModel.refineDescription(10);
+        rootModel.attachLatToPrime();
+        //ImagePlus imgMov = multiPlongement(imageRef, rootModel, false);
+        ImagePlus imgMov = plongement(imageRef, rootModel, false); // TODO Faire attention à la présence de RSML
+        RegistrationAction regAct = RegistrationAction.defineSettingsForRSML(imageRef);
+        //regAct.typeAutoDisplay = 2;
+        BlockMatchingRegistration br = BlockMatchingRegistration.setupBlockMatchingRegistration(imageRef, imgMov, regAct);
+        BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(br, rootModel);
+
+
+        if (!display) bm.imageJOutputActivated = false;
+        //bm.waitBeforeStart=false;
+        // bm.updateViews(0, 0, 0, "Start");
+        bm.displayRegistration = display ? 2 : 0;
+        bm.minBlockVariance = 0.05;
+        bm.minBlockScore = 0.01;
+        bm.adjustZoomFactor(512.0 / imageRef.getWidth());
+        //bm.defaultCoreNumber = multiRsml ? 1 : VitimageUtils.getNbCores() / 2;
+        ItkTransform itkTransform = bm.runBlockMatching(null, false);
+
+        // save the transformation
+        bm.closeLastImages();
+        bm.freeMemory();
+        return bm.rM;
     }
 
     /**
@@ -721,7 +747,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
                 this.resampler.setDefaultPixelValue(this.imgMovDefaultValue); // Set the default pixel value for the resampler
 
                 if (this.isRsml)
-                    imgMovTemp = multiPlongement(this.imgRef, this.rM, false); // If this is an RSML, plunge the reference image into the root model
+                    imgMovTemp = plongement(this.imgRef, this.rM, false); // If this is an RSML, plunge the reference image into the root model
                 else {
                     imgMovTemp = VitimageUtils.gaussianFilteringIJ(this.imgMov, this.successiveSmoothingSigma[lev], this.successiveSmoothingSigma[lev], this.successiveSmoothingSigma[lev]); // Apply Gaussian filtering to the moving image
                     voxSizes = VitimageUtils.getVoxelSizes(imgMovTemp); // Get the voxel sizes of the moving image
@@ -780,11 +806,9 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
                 // chose the begin x position between 0 and top left x - StrideMoving (if possible) or 0
                 int beginPositionX = 0;
                 int beginPositionY = 0;
-                int endPositionX = nbBlocksX;
-                int endPositionY = nbBlocksY;
                 // Iterate over all blocks in the x, y, and z dimensions
-                for (int blX = beginPositionX; blX < endPositionX; ++blX) {
-                    for (int blY = beginPositionY; blY < endPositionY; ++blY) {
+                for (int blX = beginPositionX; blX < nbBlocksX; ++blX) {
+                    for (int blY = beginPositionY; blY < nbBlocksY; ++blY) {
                         for (int blZ = 0; blZ < nbBlocksZ; ++blZ) {
                             // Calculate the values of the block in the reference image
                             double[] valsBlock = VitimageUtils.valuesOfBlock(imgRefTemp,
@@ -1005,6 +1029,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
                                 correspondences[numThread] = correspondancesThread2;
                             } catch (Exception ie) {
                                 //throw new RuntimeException(ie); new
+                                System.err.println("Thread interrupted : " + ie);
                             }
                         }
 
@@ -1526,7 +1551,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         ImagePlus maskGrid = VitimageUtils.makeOperationOnOneImage(gridTemp, 2, 1 / 255.0, true);
         ImagePlus gridResidual = VitimageUtils.makeOperationOnOneImage(gridTemp, 2, 1 / 15.0, true);
         ImagePlus test = VitimageUtils.makeOperationBetweenTwoImages(maskGrid, distMap, 2, true);
-        ImagePlus maskRoot = VitimageUtils.getBinaryMask(multiPlongement(this.imgRef, this.rM, false), 10); // anciennement plongement
+        ImagePlus maskRoot = VitimageUtils.getBinaryMask(plongement(this.imgRef, this.rM, false), 10); // anciennement plongement
         ImagePlus maskOutRoot = VitimageUtils.gaussianFiltering(maskRoot, 10, 10, 0);
         maskOutRoot = VitimageUtils.getBinaryMaskUnary(maskOutRoot, 4);
 

@@ -17,7 +17,10 @@ import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.fijiyama.registration.TransformUtils;
 import io.github.rocsg.rsmlparser.*;
-import org.apache.commons.math3.ml.clustering.*;
+import org.apache.commons.math3.ml.clustering.Cluster;
+import org.apache.commons.math3.ml.clustering.Clusterer;
+import org.apache.commons.math3.ml.clustering.DoublePoint;
+import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.apache.commons.math3.ml.distance.DistanceMeasure;
 import org.scijava.vecmath.Point3d;
 import org.w3c.dom.Document;
@@ -52,6 +55,7 @@ import static io.github.rocsg.rsmlparser.Root4Parser.getTotalChildrenList;
 
 /**
  * Taken from Xavier Draye and Guillaume Lobet - Université catholique de Louvain
+ *
  * @author Romain Fernandez and Loaï gandeel
  */
 
@@ -1109,7 +1113,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
                     if (rOld != rLat) newChi.add(rOld);
                 }
                 rLat.parent.childList = newChi;
-                bestPrim.attachChild(rLat);
+                Objects.requireNonNull(bestPrim).attachChild(rLat);
                 rLat.attachParent(bestPrim);
             }
         }
@@ -1909,6 +1913,25 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         return new Object[]{nodeMin, rootMin};
     }
 
+    public Object[] getClosesNodeInCurrentRoot(Point3d pt, Root currentRoot) {
+        double x = pt.x;
+        double y = pt.y;
+        double distMin = 1E18;
+        Node nodeMin = null;
+        Root rootMin = null;
+        Node n = currentRoot.firstNode;
+        while (n != null) {
+            double dist = Math.sqrt((x - n.x) * (x - n.x) + (y - n.y) * (y - n.y));
+            if (dist < distMin && n.birthTime <= pt.z) {
+                distMin = dist;
+                rootMin = currentRoot;
+                nodeMin = n;
+            }
+            n = n.child;
+        }
+        return new Object[]{nodeMin, rootMin};
+    }
+
     public Object[] getClosesNodeInCurrentRoot(Point3d pt, Root currentRoot, List<Node> notTheseNode) {
         double x = pt.x;
         double y = pt.y;
@@ -2271,11 +2294,11 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         for (Root r : rootList) {
             maxOrder = Math.max(maxOrder, r.order);
         }
-       for (int i = 2; i <= maxOrder; i++) {
-           for (Root r : rootList) {
-               if (r.order == i) count[r.plantNumber]++;
-           }
-       }
+        for (int i = 2; i <= maxOrder; i++) {
+            for (Root r : rootList) {
+                if (r.order == i) count[r.plantNumber]++;
+            }
+        }
         return count;
     }
 
@@ -2875,7 +2898,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         return createGrayScaleImageWithTime(initDims, SIZE_FACTOR, binaryColor, observationTime, dotLineForHidden, symbolOptions, lineWidths, true);
     }
 
-
     /**
      * Creates the gray scale image with time.
      *
@@ -3044,7 +3066,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         imgRSML.setDisplayRange(0, maxDate + 2);
         return imgRSML;
     }
-
 
     /**
      * Creates the gray scale image time lapse.
@@ -3243,7 +3264,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         }
         return imgRSML;
     }
-
 
     /**
      * Create an image processor based on the roots contained into the root system.
@@ -3552,8 +3572,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         List<Integer> yList = new ArrayList<Integer>();
 
         // Add all the nodes coordinates
-        for (int i = 0; i < rootList.size(); i++) {
-            Root r = rootList.get(i);
+        for (Root r : rootList) {
             Node n = r.firstNode;
             while (n.child != null) {
                 xList.add((int) n.x);
@@ -3575,7 +3594,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         return new PolygonRoi(roi.getConvexHull(), Roi.POLYGON);
     }
 
-
     /**
      * Distance.
      *
@@ -3588,7 +3606,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
     public double distance(double x0, double y0, double x1, double y1) {
         return Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
     }
-
 
     //// Handling interface methods
 
@@ -3637,9 +3654,20 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
     public IRootModelParser createRootModels(Map<LocalDate, List<IRootModelParser>> rootModels, float scaleFactor) {
         RootModel rm = new RootModel();
         LocalDate firstDate = rootModels.keySet().iterator().next();
-        RootModel4Parser firstRootModel = (RootModel4Parser) rootModels.get(firstDate).get(0);
+        RootModel4Parser firstRootModel = null;
+        try {
+            firstRootModel = (RootModel4Parser) rootModels.get(firstDate).get(0);
+        } catch (IndexOutOfBoundsException e) {
+            // find the first non empty root model
+            for (LocalDate date : rootModels.keySet()) {
+                if (!rootModels.get(date).isEmpty()) {
+                    firstRootModel = (RootModel4Parser) rootModels.get(date).get(0);
+                    break;
+                }
+            }
+        }
 
-        rm.imgName = firstRootModel.getFileKey();
+        rm.imgName = Objects.requireNonNull(firstRootModel).getFileKey();
         String unit = firstRootModel.getUnit();
         float res = firstRootModel.getResolution();
         rm.dpi = getDPI(unit, res);
@@ -3726,20 +3754,17 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         List<Root4Parser> rootList = rootsMap.get(id);
         Root root = null;
         root = createRoot(rm, id, rootList, dates, scaleFactor);
-
         // It is a lateral root - known from the RootModel (not parser
         if (parent != null) {
             parent.attachChild(root);
-            root.attachParent(parent);
-        }
-        else if (!rm.rootList.isEmpty()) {
+            root.attachParent(parent);//a15e4ab4-2c61-4fbd-a134-e47167099014
+            root.firstNode.parent = (Node) rm.getClosesNodeInCurrentRoot(new Point3d(root.firstNode.x, root.firstNode.y, root.firstNode.birthTime), parent)[0];
+        } else if (!rm.rootList.isEmpty()) {
             Root checkRoot = looking4Root(rm.rootList, root.getId());
-            rm.rootList.add(root);
-            if (checkRoot == null ) {
-                System.err.println("Root not found in the root list ! ");
-            }
-            else if (checkRoot.order > 1) {
-                root.attachParent(checkRoot.parent);
+            rm.rootList.add(checkRoot);
+            if (checkRoot == null) {
+                if (rootList.get(0).getOrder() == 1) rm.rootList.add(root);
+                else System.err.println("Problem with Root : " + root);
             }
         } else rm.rootList.add(root);
 
@@ -3800,6 +3825,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             }
             //first = true; //even though technically true, will be adjusted later in the code
         }
+        root.lastNode = root.firstNode;
         root.computeDistances();
 
         // assert that the number of nodes of the newly created root is the same as the sum of the number of points of all the roots
@@ -3828,7 +3854,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * Finalisation de la creation du rootmodel avant blockmatching
      */
     public void adjustRootModel() {
-        float minTime = Float.MAX_VALUE;
         Map<Float, List<Node>> nodes = new HashMap<>();
 
         // Iterate through each root in the root list
@@ -3842,42 +3867,29 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
             // Find the time with the maximum number of points
             float timeWithMaxPoints = nodes.keySet().iterator().next();
+            float minTime = Float.MAX_VALUE;
             for (Float time : nodes.keySet()) {
                 if (nodes.get(time).size() > nodes.get(timeWithMaxPoints).size()) timeWithMaxPoints = time;
+                minTime = Math.min(minTime, time);
             }
 
             //calculateNodeKMeans(r, nodes, timeWithMaxPoints, minTime);
 
             // Call the new function to process nodes and calculate means
-            calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
+            calculateNodeMin(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMeans(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
-            //calculateNodeMin(r, nodes, timeWithMaxPoints, minTime);
             nodes.clear();
         }
 
         for (Root r : this.rootList) {
             if (r.order >= 2) { // TODO generalize
                 Object[] result = getClosesNodeParentOrder(new Point3d(r.firstNode.x, r.firstNode.y, r.firstNode.birthTime), r);
-                r.firstNode.parent =(Node) result[0];
+                r.firstNode.parent = (Node) result[0];
                 r.parentNode = (Node) result[0];
                 r.parent = (Root) result[1];
                 r.firstNode.parent.birthTime = Math.min(r.firstNode.birthTime, r.firstNode.parent.birthTime);
                 r.firstNode.isInsertionPoint = true;
-            }
-        }
-
-        for (Root r1 : rootList) {
-            if (r1.childList != null) {
-                // empty the child list
-                r1.childList.clear();
-
-                // add the child to the parent
-                for (Root r2 : rootList) {
-                    if (r2.parent != null && r2.parent.equals(r1)) {
-                        r1.childList.add(r2);
-                    }
-                }
             }
         }
 
@@ -3895,10 +3907,11 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      */
     private void calculateNodeMeans(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
         r.firstNode = nodes.get(timeWithMaxPoints).get(0);
+        r.firstNode.parent.child = null;
         r.firstNode.parent = null;
         r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
+        r.lastNode.parent = null;
         r.lastNode.child = null;
-        r.nNodes = nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size() + 1;
         Node n = r.firstNode;
         for (int j = 0; j < nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size(); j++) {
             double meanX = 0;
@@ -3944,12 +3957,17 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      */
     private void calculateNodeMax(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
         r.firstNode = nodes.get(timeWithMaxPoints).get(0);
+        if (r.firstNode.parent == null) {
+            System.out.println("Error: parent child is null");
+        }
+        r.firstNode.parent.child = null;
         r.firstNode.parent = null;
         r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
+        r.lastNode.parent = null;
         r.lastNode.child = null;
         //r.nNodes =nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size() + 1;
         //for (int j = 0; j < nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size(); j++) {
-        r.nNodes =nodes.get(timeWithMaxPoints).size();
+        r.nNodes = nodes.get(timeWithMaxPoints).size();
         Node n = r.firstNode;
         for (int j = 0; j < nodes.get(timeWithMaxPoints).size(); j++) {
             double maxX = 0; // not max value of x but max time x value
@@ -3983,7 +4001,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             }
             n = n.child;
         }
-
         // counting the number of nodes in the root
         int count = 0;
         Node n1 = r.firstNode;
@@ -3991,7 +4008,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             count++;
             n1 = n1.child;
         }
-       assert r.nNodes == count : "The number of nodes of the newly created root is not the same as the sum of the number of points of all the roots";
+        assert r.nNodes == count : "The number of nodes of the newly created root is not the same as the sum of the number of points of all the roots";
     }
 
     /**
@@ -3999,16 +4016,16 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      */
     private void calculateNodeMin(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
         r.firstNode = nodes.get(timeWithMaxPoints).get(0);
+        r.firstNode.parent.child = null;
         r.firstNode.parent = null;
         r.lastNode = nodes.get(timeWithMaxPoints).get(nodes.get(timeWithMaxPoints).size() - 1);
+        r.lastNode.parent = null;
         r.lastNode.child = null;
-        //r.nNodes =nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size() + 1;
-        //for (int j = 0; j < nodes.get(nodes.keySet().stream().max(Float::compareTo).get()).size(); j++) {
-        r.nNodes =nodes.get(timeWithMaxPoints).size();
         Node n = r.firstNode;
         for (int j = 0; j < nodes.get(timeWithMaxPoints).size(); j++) {
-            double maxX = 0; // not max value of x but max time x value
-            double maxY = 0;
+            double x = 0; // not max value of x but max time x value
+            double y = 0;
+            double diameter = 0;
             float minT = Float.MAX_VALUE;
             float maxT = Float.MIN_VALUE;
             for (float key : nodes.keySet()) {
@@ -4017,8 +4034,9 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
                     maxT = Math.max(key, maxT);
 
                     if (Math.min(key, minT) < minT) {
-                        maxX = nodes.get(timeWithMaxPoints).get(j).x;
-                        maxY = nodes.get(timeWithMaxPoints).get(j).y;
+                        x = nodes.get(timeWithMaxPoints).get(j).x;
+                        y = nodes.get(timeWithMaxPoints).get(j).y;
+                        diameter = nodes.get(timeWithMaxPoints).get(j).diameter;
                     }
                     minT = Math.min(key, minT);
                 } catch (IndexOutOfBoundsException ignored) {
@@ -4028,8 +4046,10 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             if (minT == Float.MAX_VALUE) {
                 System.out.println("Error: minT is still Float.MAX_VALUE");
             }
-            n.x = (float) maxX;
-            n.y = (float) maxY;
+
+            Objects.requireNonNull(n).x = (float) x;
+            n.y = (float) y;
+            n.diameter = (float) diameter;
             n.birthTime = minT;
             n.birthTimeHours = minT * 24;
 
@@ -4037,6 +4057,13 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             for (int i = 0; i < this.hoursCorrespondingToTimePoints.length; i++) {
                 this.hoursCorrespondingToTimePoints[i] = minTime + i;
             }
+
+            if (!r.firstNode.equals(n) && n.parent.birthTime != n.birthTime) {
+                n.vx = n.x - n.parent.x;
+                n.vy = n.y - n.parent.y;
+            }
+
+            if (n.child != null) n.child.parent = n;
             n = n.child;
         }
 
@@ -4156,12 +4183,14 @@ class CustomDistance implements DistanceMeasure {
     @Override
     public double compute(double[] a, double[] b) {
         if ((a[3] == b[3])) return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2));
-        else if (a[2] == b[2]) return (Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2)) * Math.pow(a[3] - b[3], 2));
-        else return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2)) * Math.pow(a[3] - b[3], 2) * Math.pow(a[2] - b[2], 2);
+        else if (a[2] == b[2])
+            return (Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2)) * Math.pow(a[3] - b[3], 2));
+        else
+            return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2)) * Math.pow(a[3] - b[3], 2) * Math.pow(a[2] - b[2], 2);
     }
 }
 
-class DistanceBTWRootModels implements  Comparator<RootModel> {
+class DistanceBTWRootModels implements Comparator<RootModel> {
     @Override
     public int compare(RootModel o1, RootModel o2) {
         return 0;

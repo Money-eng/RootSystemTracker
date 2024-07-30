@@ -32,8 +32,10 @@ enum SelectionStrategy {
     MOST_LINES_LEAST_ZEROS,
     MOST_RECENT_TIMESTAMP,
     MOST_COMPLEXITY,
+    MOST_ORGANS,
     LEAST_DUPLICATES,
     CLOSEST_PIXEL_VALUE,
+    CLOSEST_PIXEL_VALUE_MOST_ORGANS,
     RANDOM
 }
 
@@ -52,59 +54,116 @@ public class RSMLFileUtils {
      * @param strategy   the selection strategy to use
      * @return a stack of selected RSML file paths
      */
-    public static Stack<String> checkUniquenessRSMLs(Path folderPath, ConcurrentHashMap<String, LocalDate> dates, SelectionStrategy strategy) {
+    public static TreeSet<String> checkUniquenessRSMLs(Path folderPath, ConcurrentHashMap<String, LocalDate> dates, SelectionStrategy strategy, List<LocalDate> removedDates) {
         try {
             Map<String, List<Path>> groupedFiles = Files.list(folderPath)
                     .filter(path -> path.toString().matches(".*\\.(rsml|rsml\\d{2})$"))
                     .collect(Collectors.groupingBy(path -> path.toString().split("\\.")[0]));
 
-            Stack<String> keptRsmlFiles = new Stack<>();
-            Stack<Path> removedRsmlFiles = new Stack<>();
+            HashSet<String> keptRsmlFiles = new HashSet<>();
+            HashSet<Path> removedRsmlFiles = new HashSet<>();
 
             // validate every single RSML files
             for (List<Path> paths : groupedFiles.values()) {
                 for (Path path : paths) {
                     if (!validateRSMLFile(path)) {
                         System.err.println("Invalid RSML file: " + path);
-                        removedRsmlFiles.add(path);
+                        boolean corrected = correctInvalidRSMLFile(path);
+                        if (!corrected) {
+                            removedRsmlFiles.add(path);
+                        } else {
+                            System.err.println("Managed to correct RSML file: " + path);
+                            // replace the path with the corrected one
+                            Path correctedPath = path.resolveSibling(path.getFileName().toString().replace(".rsml", "_corrected.rsml"));
+                            paths.set(paths.indexOf(path), correctedPath);
+                        }
                     }
                     //normalizeRSMLFile(path);
                 }
             }
+
+            // if 2 keys are the same but one of them has a '_corrected' value, then remove then mix the two lists
+            for (String key : groupedFiles.keySet()) {
+                if (groupedFiles.containsKey(key + "_corrected")) {
+                    groupedFiles.get(key).addAll(groupedFiles.get(key + "_corrected"));
+                }
+            }
+
+            // removing all keys with '_corrected' value
+            groupedFiles.keySet().removeIf(key -> key.contains("_corrected"));
+
             // remove all invalid files from the groupedFiles
             for (Path path : removedRsmlFiles) {
                 for (List<Path> paths : groupedFiles.values()) {
                     paths.remove(path);
                 }
             }
-            // checking that no dates are being forgotten by getting the paths that don't have a date in the dates map
-            for (List<Path> paths : groupedFiles.values()) {
-                for (Path path : paths) {
-                    if (!dates.containsKey(path.toString())) {
-                        System.err.println("No date found for file: " + path);
-                        System.exit(0);
+
+            // if one of the keys of the groupedFiles has no associated value, then remove the key
+            for (String key : groupedFiles.keySet()) {
+                if (groupedFiles.get(key).isEmpty()) {
+                    System.err.println("No valid RSML file for time: " + dates.get(key + ".rsml"));
+                    groupedFiles.remove(key);
+                    // DANGER : TODO generalize
+                    removedDates.add(dates.get(key + ".rsml"));
+                    dates.remove(key + ".rsml");
+                }
+            }
+
+            // sort the groupedFiles by key
+            try {
+                groupedFiles.values().parallelStream().forEach(paths -> {
+                    ImagePlus image = null;
+                    double targetValue = 30.0;
+                    if (strategy == SelectionStrategy.CLOSEST_PIXEL_VALUE || backupStrategy == SelectionStrategy.CLOSEST_PIXEL_VALUE
+                            || strategy == SelectionStrategy.CLOSEST_PIXEL_VALUE_MOST_ORGANS || backupStrategy == SelectionStrategy.CLOSEST_PIXEL_VALUE_MOST_ORGANS) {
+                        // path to image is path to rsml file with .png extension instead of .rsml
+                        String imagePath = paths.get(0).toString().replace("_corrected", "");
+                        // remove the numbers after the .rsml
+                        if (imagePath.matches(".*\\d{2}")) {
+                            imagePath = imagePath.substring(0, imagePath.length() - 2);
+                        }
+                        imagePath = imagePath.replace(".rsml", ".jpg");
+                        // load the image with the lib imageio
+                        image = new ImagePlus(imagePath);
+                        // convert the image to 32 bit image
+                        image.getProcessor().convertToFloat();
+                        // get the target value
+                        targetValue = 0.0; // TODO : generalize
                     }
+                    Path selectedFile = selectFile(paths, strategy, image, targetValue);
+                    synchronized (keptRsmlFiles) {
+                        keptRsmlFiles.add(selectedFile.toString());
+                    }
+                    // clear memory
+                    if (image != null) image.flush();
+                    Objects.requireNonNull(image).close();
+                });
+
+            } catch (Exception e) {
+                // empty keptRsmlFiles
+                keptRsmlFiles.clear();
+                for (List<Path> paths : groupedFiles.values()) {
+                    ImagePlus image = null;
+                    double targetValue = 0.0;
+                    if (strategy == SelectionStrategy.CLOSEST_PIXEL_VALUE || backupStrategy == SelectionStrategy.CLOSEST_PIXEL_VALUE
+                            || strategy == SelectionStrategy.CLOSEST_PIXEL_VALUE_MOST_ORGANS || backupStrategy == SelectionStrategy.CLOSEST_PIXEL_VALUE_MOST_ORGANS) {
+                        // path to image is path to rsml file with .png extension instead of .rsml
+                        String imagePath = paths.get(0).toString().replace(".rsml", ".jpg");
+                        // load the image with the lib imageio
+                        image = new ImagePlus(imagePath);
+                        // convert the image to 32 bit image
+                        image.getProcessor().convertToFloat();
+                        // get the target value
+                        targetValue = 0.0; // TODO : generalize
+                    }
+                    Path selectedFile = selectFile(paths, strategy, image, targetValue);
+                    keptRsmlFiles.add(selectedFile.toString());
                 }
             }
 
-            for (List<Path> paths : groupedFiles.values()) {
-                ImagePlus image = null;
-                double targetValue = 0.0;
-                if (strategy == SelectionStrategy.CLOSEST_PIXEL_VALUE || backupStrategy == SelectionStrategy.CLOSEST_PIXEL_VALUE) {
-                    // path to image is path to rsml file with .png extension instead of .rsml
-                    String imagePath = paths.get(0).toString().replace(".rsml", ".jpg");
-                    // load the image with the lib imageio
-                    image = new ImagePlus(imagePath);
-                    // convert the image to 32 bit image
-                    image.getProcessor().convertToFloat();
-                    // get the target value
-                    targetValue = 0.0; // TODO : generalize
-                }
-                Path selectedFile = selectFile(paths, strategy, image, targetValue);
-                keptRsmlFiles.add(selectedFile.toString());
-            }
-
-            return keptRsmlFiles.stream().sorted().collect(Collectors.toCollection(Stack::new));
+            System.out.println("Selected RSML files: " + keptRsmlFiles);
+            return new TreeSet<>(keptRsmlFiles);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -135,12 +194,16 @@ public class RSMLFileUtils {
                 return resolveTie(paths, SelectionStrategy.MOST_RECENT_TIMESTAMP);
             case MOST_COMPLEXITY:
                 return resolveTie(paths, SelectionStrategy.MOST_COMPLEXITY);
+            case MOST_ORGANS:
+                return resolveTie(paths, SelectionStrategy.MOST_ORGANS, SelectionStrategy.LEAST_DUPLICATES);
             case LEAST_DUPLICATES:
                 return resolveTie(paths, SelectionStrategy.LEAST_DUPLICATES);
             case RANDOM:
                 return paths.get(new Random().nextInt(paths.size()));
             case CLOSEST_PIXEL_VALUE: // Handle new strategy
                 return resolveTie(paths, SelectionStrategy.CLOSEST_PIXEL_VALUE, image, targetValue);
+            case CLOSEST_PIXEL_VALUE_MOST_ORGANS:
+                return resolveTie(paths, SelectionStrategy.CLOSEST_PIXEL_VALUE, SelectionStrategy.MOST_ORGANS, image, targetValue);
             default:
                 throw new IllegalArgumentException("Unknown selection strategy: " + strategy);
         }
@@ -211,7 +274,6 @@ public class RSMLFileUtils {
         return filteredPaths.isEmpty() ? paths.get(0) : filteredPaths.get(0);
     }
 
-
     /**
      * Applies the given selection strategy to the list of paths.
      *
@@ -247,6 +309,13 @@ public class RSMLFileUtils {
             case MOST_COMPLEXITY:
                 return paths.stream()
                         .collect(Collectors.groupingBy(RSMLFileUtils::getFileComplexity))
+                        .entrySet().stream()
+                        .max(Comparator.comparingInt(Map.Entry::getKey))
+                        .map(Map.Entry::getValue)
+                        .orElseThrow(NoSuchElementException::new);
+            case MOST_ORGANS:
+                return paths.stream()
+                        .collect(Collectors.groupingBy(RSMLFileUtils::getNumOrgans))
                         .entrySet().stream()
                         .max(Comparator.comparingInt(Map.Entry::getKey))
                         .map(Map.Entry::getValue)
@@ -334,7 +403,6 @@ public class RSMLFileUtils {
         }
     }
 
-
     /**
      * Gets the last modified timestamp of a file.
      *
@@ -344,6 +412,23 @@ public class RSMLFileUtils {
     private static long getFileTimestamp(Path path) {
         try {
             return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Gets the number of organs in a file.
+     *
+     * @param path the file path
+     * @return the number of organs (here root elements with a label attribute)
+     */
+    private static int getNumOrgans(Path path) {
+        try {
+            return Files.lines(path)
+                    .map(line -> line.split("<root").length - 1)
+                    .mapToInt(Integer::intValue)
+                    .sum();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -465,6 +550,11 @@ public class RSMLFileUtils {
                 return false;
             }
 
+            if (doc.getElementsByTagName("point").getLength() == 0) {
+                System.err.println("Missing points in file: " + filePath);
+                return false;
+            }
+
             // Checking the structure of the file attributes
             NodeList nodeList = doc.getElementsByTagName("root");
             for (int i = 0; i < nodeList.getLength(); i++) {
@@ -490,6 +580,62 @@ public class RSMLFileUtils {
             e.printStackTrace();
             return false;
         }
+    }
+
+    /**
+     * Corrects the RSML file by moving lateral roots to the primary root if only one primary root exists.
+     *
+     * @param filePath The path to the RSML file to correct
+     * @return true if the file was corrected and saved successfully, false otherwise
+     */
+    public static boolean correctInvalidRSMLFile(Path filePath) {
+        try {
+            // Parse the file
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document document = builder.parse(filePath.toFile());
+
+            // primary's contains 'root' in their label while lateral's contains 'lat'
+            NodeList rootNodes = document.getElementsByTagName("root");
+            List<Element> primaryRoots = new ArrayList<>();
+            List<Element> lateralRoots = new ArrayList<>();
+            for (int i = 0; i < rootNodes.getLength(); i++) {
+                Element rootElement = (Element) rootNodes.item(i);
+                if (rootElement.getAttribute("label").contains("root")) {
+                    primaryRoots.add(rootElement);
+                } else if (rootElement.getAttribute("label").contains("lat")) {
+                    lateralRoots.add(rootElement);
+                }
+            }
+
+            // if there is only one primary root, then move the lateral roots to the primary root
+            if (primaryRoots.size() == 1) {
+                Element primaryRoot = primaryRoots.get(0);
+                for (Element lateralRoot : lateralRoots) {
+                    org.w3c.dom.Node parentNode = lateralRoot.getParentNode();
+                    primaryRoot.appendChild(lateralRoot);
+                    //parentNode.removeChild(lateralRoot);
+                }
+
+                // save the corrected as new file with a "corrected" suffix
+                TransformerFactory transformerFactory = TransformerFactory.newInstance();
+                Transformer transformer = transformerFactory.newTransformer();
+                transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+                transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+                DOMSource source = new DOMSource(document);
+                Path correctedFilePath = filePath.resolveSibling(filePath.getFileName().toString().replace(".rsml", "_corrected.rsml"));
+                StreamResult result = new StreamResult(Files.newOutputStream(correctedFilePath));
+                transformer.transform(source, result);
+                System.out.println("File corrected and saved to: " + correctedFilePath);
+            } else {
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("Error correcting file: " + filePath);
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 
     /**

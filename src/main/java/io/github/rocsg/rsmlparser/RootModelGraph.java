@@ -13,6 +13,7 @@ import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
+import io.github.rocsg.rstutils.BlockMatchingRegistrationRootModel;
 import math3d.Point3d;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
 import org.apache.commons.math3.ml.clustering.Cluster;
@@ -28,15 +29,17 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.LocalDate;
-import java.util.*;
 import java.util.List;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
+import static io.github.rocsg.rsmlparser.RsmlParser.getDate;
 import static io.github.rocsg.rstplugin.PipelineParamHandler.configurePipelineParams;
 
 public class RootModelGraph {
@@ -50,7 +53,7 @@ public class RootModelGraph {
 
     public RootModelGraph() throws IOException {
         //this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\12_stack_cropped.tif");
-        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R05_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R05_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R05_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R05_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R05_01\\12_stack_cropped.tif");
+        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R07_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\12_stack_cropped.tif");
     }
 
     /**
@@ -78,17 +81,59 @@ public class RootModelGraph {
         configMap.put("scalingFactor", "4");
         configMap.put("xMinCrop", "350");
         configMap.put("yMinCrop", "87");
-        configMap.put("dxCrop", "2305");
+        configMap.put("dxCrop", "2380"); // 2305
         configMap.put("dyCrop", "2108");
         configMap.put("marginRegisterLeft", "5");
         configMap.put("marginRegisterUp", "248");
         configMap.put("marginRegisterDown", "5");
 
         configurePipelineParams(configMap);
-        pph = new PipelineParamHandler(inputPathPPH, outputPathPPH);
 
+        pph = new PipelineParamHandler(inputPathPPH, outputPathPPH);
+        configurePipelineParams(configMap);
         // Reading all RSMLs and getting the RootModels
-        Map<LocalDate, List<IRootModelParser>> result = parseRsmlFiles(path2RSMLs);
+
+
+        /*****DEBUG*****/
+        List<LocalDate> removedDates = new ArrayList<>(); // DANGER
+        Map<LocalDate, List<IRootModelParser>> result = parseRsmlFiles(path2RSMLs, removedDates);
+
+        List<LocalDate> datesFromImages = new ArrayList<>();
+
+        ConcurrentHashMap<String, LocalDate> fileDates = new ConcurrentHashMap<>();
+        // get the date of the rsml files
+        try {
+            Path path2Images = Paths.get(path2RSMLs);
+            Files.list(path2Images)
+                    .parallel()
+                    .filter(path -> path.toString().matches(".*\\.(jpg)$"))
+                    .forEach(path -> {
+                        fileDates.put(path.toString(), Objects.requireNonNull(getDate(path.toString().split("\\.")[0])));
+                    });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        // from fileDates, get the dates of the images
+        fileDates.forEach((path, date) -> {
+            if (!datesFromImages.contains(date)) datesFromImages.add(date);
+        });
+
+        HashSet<LocalDate> totalDates = new HashSet<>(result.keySet());
+        totalDates.addAll(removedDates);
+        totalDates.addAll(datesFromImages);
+        // sort the dates in ascending order
+        List<LocalDate> sortedDates = new ArrayList<>(totalDates);
+        sortedDates.sort(LocalDate::compareTo);
+
+        // adding the dates to result
+        sortedDates.forEach(date -> {
+            if (!result.containsKey(date)) {
+                result.put(date, new ArrayList<>());
+            }
+        });
+
+        /*****DEBUG*****/
 
         // Initialize FSR and create RootModels
         FSR sr = new FSR();
@@ -97,18 +142,26 @@ public class RootModelGraph {
         rms = (RootModel) rms.createRootModels(result, (float) PipelineParamHandler.subsamplingFactor);
 
         ImagePlus refImage = new ImagePlus(registeredImagePath);
+
+        // if removedDatesIndex is not empty, remove the corresponding slices from the image
         image = refImage;
 
         // Read all the transforms and apply them
         ImagePlus imgInitSize = new ImagePlus(originalScaledImagePath);
-        displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
+        //displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
+
+        //RootModel basicRM = new RootModel();
+        //basicRM = (RootModel) basicRM.createRootModels(result, (float) PipelineParamHandler.subsamplingFactor);
+        //basicRM.adjustRootModel();
+        //displayOnImage(createGraphFromRM(basicRM), imgInitSize, false).show();
+
 
         readAndApplyTransforms(transformerPath, rms, refImage, imgInitSize);
         rms.adjustRootModel();
 
 
-        ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage);
-        img3.show();
+        //ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage);
+        //img3.show();
 
         // save RootModel before and after adjustment
         String path2NewRSML = path2RSMLs + "\\NewRSMLs\\" + LocalDate.now() + ".rsml";
@@ -117,7 +170,11 @@ public class RootModelGraph {
         if (!Files.exists(path)) Files.createDirectories(path);
         rms.writeRSML3D(new File(path2NewRSML).getAbsolutePath().replace("\\", "/"), "", true, false);
 
-        //setupAndRunRsmlBlockMatchingRegistration(rms, refImage);
+        BlockMatchingRegistrationRootModel.setupAndRunRsmlBlockMatchingRegistration(rms, refImage, true);
+
+        //PlantReconstruction pr = new PlantReconstruction(rms);*/
+
+        //setupAndRunRsmlBlockMatchingRegistration(rms, refImage, false);
 
 
         // Display the final graph
@@ -131,10 +188,7 @@ public class RootModelGraph {
         //img3.show();
         // stop execution but not the running programs
 
-        /*BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(rms);
-        bm.setupAndRunRsmlBlockMatchingRegistration(rms, refImage);
 
-        PlantReconstruction pr = new PlantReconstruction(rms);*/
 
         /*interpolatePointsSplineFitter(rms, displayOnImage(createGraphFromRM(rms), refImage, insertionPoints));
 
@@ -382,8 +436,8 @@ public class RootModelGraph {
      * @return A Map with the date as key and the list of IRootModelParser as value
      * @throws IOException If an I/O error occurs
      */
-    private Map<LocalDate, List<IRootModelParser>> parseRsmlFiles(String path2RSMLs) throws IOException {
-        RsmlParser rsmlParser = new RsmlParser(path2RSMLs);
+    private Map<LocalDate, List<IRootModelParser>> parseRsmlFiles(String path2RSMLs, List<LocalDate> removedDates) throws IOException {
+        RsmlParser rsmlParser = new RsmlParser(path2RSMLs, removedDates);
         Map<LocalDate, List<IRootModelParser>> result = RsmlParser.getRSMLsInfos(Paths.get(rsmlParser.path2RSMLs));
         result.forEach((date, rootModel4Parsers) -> {
             System.out.println("Date : " + date);
@@ -404,6 +458,7 @@ public class RootModelGraph {
         return VitimageUtils.cropImage(new ImagePlus(originalScaledImagePath), (int) (1400.0 / subsamplingFactor), (int) (350.0 / subsamplingFactor), 0, (int) ((10620.0 - 1400.0) / subsamplingFactor), (int) ((8783.0 - 350.0) / subsamplingFactor), size);
     }
 
+
     /**
      * Function to read and apply the transforms to the RootModel
      *
@@ -413,31 +468,62 @@ public class RootModelGraph {
      * @param imgInitSize     The ImagePlus image of the initial size
      * @throws IOException If an I/O error occurs
      */
-    private void
-    readAndApplyTransforms(String transformerPath, RootModel rms, ImagePlus res2, ImagePlus imgInitSize) throws IOException {
+    private void readAndApplyTransforms(String transformerPath, RootModel rms, ImagePlus res2, ImagePlus imgInitSize) throws IOException {
         // Define these as class variables if the method is called multiple times
         final Pattern indexPattern = Pattern.compile("_(\\d+)\\.");
         final PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher("glob:**.transform.tif");
 
-        ConcurrentHashMap<Integer, ItkTransform> tempTransforms;
-        try (Stream<Path> paths = Files.list(Paths.get(transformerPath))) {
-            tempTransforms = (ConcurrentHashMap<Integer, ItkTransform>) paths
-                    .parallel()
-                    .filter(pathMatcher::matches)
-                    .collect(Collectors.toConcurrentMap(
-                            path -> {
-                                Matcher matcher = indexPattern.matcher(path.getFileName().toString());
-                                matcher.find();
-                                return Integer.parseInt(matcher.group(1));
-                            },
-                            path -> new ItkTransform(ItkTransform.readAsDenseField(path.toString())),
-                            (oldValue, newValue) -> newValue // In case of key collision
-                    ));
+        List<Path> matchedPaths = new ArrayList<>();
+        for (File file : Objects.requireNonNull(new File(transformerPath).listFiles())) {
+            if (pathMatcher.matches(file.toPath())) {
+                matchedPaths.add(file.toPath());
+            }
         }
 
-        // Add transforms to the list in the correct order
-        IntStream.rangeClosed(1, tempTransforms.size())
-                .forEach(i -> transforms.add(tempTransforms.get(i)));
+        // reorder path
+        matchedPaths.sort(Comparator.comparingInt(o -> {
+            Matcher matcher = indexPattern.matcher(o.toString());
+            if (matcher.find()) {
+                return Integer.parseInt(matcher.group(1));
+            }
+            return -1;
+        }));
+
+        try {
+            List<CompletableFuture<IndexedTransform>> futures = new ArrayList<>();
+            // Create futures for each path
+            for (int i = 0; i < matchedPaths.size(); i++) {
+                final int index = i;
+                Path path = matchedPaths.get(index);
+                CompletableFuture<IndexedTransform> future = CompletableFuture.supplyAsync(() -> {
+                    ItkTransform transform = new ItkTransform(ItkTransform.readAsDenseField(path.toString()));
+                    return new IndexedTransform(index, transform);
+                });
+                futures.add(future);
+            }
+
+            // Wait for all futures to complete and collect the results
+            List<IndexedTransform> indexedTransforms = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .thenApply(v -> futures.stream()
+                            .map(CompletableFuture::join)
+                            .collect(Collectors.toList()))
+                    .get();
+
+            // Sort the results based on the original index
+            indexedTransforms.sort((it1, it2) -> Integer.compare(it1.index, it2.index));
+
+            // Extract the transforms in the correct order
+            transforms = indexedTransforms.stream()
+                    .map(it -> it.transform)
+                    .collect(Collectors.toList());
+
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+            for (Path path : matchedPaths) {
+                ItkTransform transform = new ItkTransform(ItkTransform.readAsDenseField(path.toString()));
+                transforms.add(transform);
+            }
+        }
 
         // creating a linear transform for the crop issue
         Point3d[] oldPos = new Point3d[1];
@@ -473,9 +559,9 @@ public class RootModelGraph {
         int birthTime = 0;
         int lastTime = forSize.getNSlices();
 
-        for (int i = 0; i < r.size(); i++) {
+        for (Root root : r) {
             points = new ArrayList<>();
-            Node firstnode = r.get(i).firstNode;
+            Node firstnode = root.firstNode;
             birthTime = (int) firstnode.birthTime;
             // add the points to the blank image
             while (firstnode != null) {
@@ -486,7 +572,7 @@ public class RootModelGraph {
             }
 
             // Perform clustering
-            int k = r.get(i).getNodesList().size() / (lastTime - birthTime + 1);
+            int k = root.getNodesList().size() / (lastTime - birthTime + 1);
             KMeansPlusPlusClusterer<DoublePoint> clusterer = new KMeansPlusPlusClusterer<>(k);
             List<CentroidCluster<DoublePoint>> clusters = clusterer.cluster(points);
 
@@ -548,8 +634,6 @@ public class RootModelGraph {
             }
         }
     }
-
-    /////////////// interpolating points ///////////////
 
     /**
      * Function to interpolate the points using the SplineFitter
@@ -655,6 +739,8 @@ public class RootModelGraph {
         img.setTitle("Interpolated points - Polynomial");
         img.show();
     }
+
+    /////////////// interpolating points ///////////////
 
     private void ensureIncreasingXValues(double[] x, double[] y) {
         boolean allIncreasing = true;
@@ -1040,6 +1126,17 @@ public class RootModelGraph {
                 double prevInterpolatedY = interpolator.interpolate(xPoint - 1);
                 ip.drawLine((int) prevInterpolatedY, (int) (xPoint - 1), (int) interpolatedY, (int) xPoint);
             }
+        }
+    }
+
+    // Helper class to hold the index and the transform
+    private static class IndexedTransform {
+        int index;
+        ItkTransform transform;
+
+        IndexedTransform(int index, ItkTransform transform) {
+            this.index = index;
+            this.transform = transform;
         }
     }
 }

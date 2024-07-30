@@ -24,12 +24,14 @@ import java.util.regex.Pattern;
 public class RsmlParser {
 
     public static SelectionStrategy strategy;
+    public static ArrayList<LocalDate> removedDates = new ArrayList<>();
     public String path2RSMLs;
 
-    public RsmlParser(String path2RSMLs) {
+    public RsmlParser(String path2RSMLs, List<LocalDate> removedDates) {
         this.path2RSMLs = path2RSMLs;
+        RsmlParser.removedDates = (ArrayList<LocalDate>) removedDates;
 
-        RSMLFileUtils.backupStrategy = SelectionStrategy.LAST_VERSION;
+        RSMLFileUtils.backupStrategy = SelectionStrategy.FIRST_VERSION;
         strategy = SelectionStrategy.CLOSEST_PIXEL_VALUE;
     }
 
@@ -187,7 +189,7 @@ public class RsmlParser {
         }
 
         // check the uniqueness of the rsml files
-        Stack<String> keptRsmlFiles = RSMLFileUtils.checkUniquenessRSMLs(folderPath, fileDates, strategy);
+        TreeSet<String> keptRsmlFiles = RSMLFileUtils.checkUniquenessRSMLs(folderPath, fileDates, strategy, removedDates);
 
 
         Map<LocalDate, List<IRootModelParser>> rsmlInfos = new TreeMap<>();
@@ -296,7 +298,7 @@ public class RsmlParser {
      * @param Date The String from which to extract the date
      * @return The LocalDate extracted from the String
      */
-    private static LocalDate getDate(String Date) {
+    static LocalDate getDate(String Date) {
         // TODO generalize
         // detect date in a String
         //// For now pattern is dd_mm_yyyy
