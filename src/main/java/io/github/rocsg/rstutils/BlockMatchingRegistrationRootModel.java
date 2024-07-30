@@ -246,9 +246,11 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
      */
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
+        FSR fsr = new FSR();
+        fsr.initialize();
 //		setupAndRunRsmlBlockMatchingRegistration("/home/rfernandez/Bureau/A_Test/BPMP/Reproduction_01_avec_reseau_morgan/Train/20200826-AC-PIP_azote_Seq 6_Boite 00005_IdentificationFailed-Visu.jpg");
-        String dir = "C:\\Users\\loaiu\\Documents\\Etudes\\MAM\\MAM5\\Stage\\data\\UC3\\test\\Output_Data\\B73_R04_01\\";
-        String img = "11_stack.tif"; //13_05_2018_HA01_R004_h053.jpg";
+        String dir = "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\";
+        String img = "13_05_2018_HA01_R004_h053.jpg";
 
         setupAndRunRsmlBlockMatchingRegistration(dir + img, true, true);
     }
