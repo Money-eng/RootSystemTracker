@@ -678,10 +678,6 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         // Load the registered stack image from the specified path
         registeredStack = IJ.openImage(new File(stackPath).getAbsolutePath());
 
-        // Initialize the FSR (Flying Software Renderer)
-        FSR sr = new FSR();
-        sr.initialize();
-
         // Load the RSML model from the specified path
         currentModel = RootModel.RootModelWildReadFromRsml(rsmlPath);
 

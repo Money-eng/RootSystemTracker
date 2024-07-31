@@ -198,7 +198,10 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @param dataFName the data F name
      */
     public RootModel(String dataFName) {
-        dpi = (FSR.prefs != null ? FSR.prefs.getFloat("DPI_default", dpi) : 1);
+        //dpi = (FSR.prefs != null ? FSR.prefs.getFloat("DPI_default", dpi) : 1);
+        if (dpi == 0) { // TODO fix
+            dpi = 1;
+        }
         pixelSize = 2.54f / dpi;
         //readRSML(dataFName);
         readRSMLNew(dataFName);
@@ -211,7 +214,10 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @param timeLapseModel the time lapse model
      */
     public RootModel(String dataFName, boolean timeLapseModel) {
-        dpi = (FSR.prefs != null ? FSR.prefs.getFloat("DPI_default", dpi) : 1);
+        //dpi = (FSR.prefs != null ? FSR.prefs.getFloat("DPI_default", dpi) : 1);
+        if (dpi == 0) { // TODO fix
+            dpi = 1;
+        }
         pixelSize = 2.54f / dpi;
         readRSML(dataFName, timeLapseModel);
     }
@@ -266,8 +272,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @return the root model
      */
     public static RootModel RootModelWildReadFromRsml(String rsmlFile) {//Wild read model for Fijiyama did Root model with time, diameter, vx and vy information
-        FSR sr = (new FSR());
-        sr.initialize();
+        //FSR sr = (new FSR());
+        //sr.initialize();
         boolean debug = false;
         //String lineSep= System.getProperty("line.separator");
 
@@ -492,86 +498,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         nPlants++;
     }
 
-    /**
-     * Root model wild read annotation from rsml.
-     * <p>
-     * param rsmlFile the rsml file
-     *
-     * @return the root model
-     * <p>
-     * public static RootModel RootModelWildReadAnnotationFromRsml (String rsmlFile) {//Wild read model for Fijiyama did Root model with time, diameter, vx and vy information
-     * FSR sr= (new FSR());
-     * sr.initialize();
-     * boolean debug=false;
-     * String[]str=VitimageUtils.readStringFromFile(rsmlFile).split(System.getProperty("line.separator"));
-     * RootModel rm=new RootModel();
-     * rm.imgName=str[10].replace("<label>", "").replace("</label>", "");
-     * int Nobs=1000000;
-     * double[]hours=new double[Nobs];
-     * boolean hasHours=true;
-     * hasHours=(str[11].contains("observation"));
-     * if(hasHours) {
-     * String []tab=(str[11].split(">")[1].split("<")[0]).split(",");
-     * double[]tabD=new double[tab.length];
-     * for(int i=0;i<tab.length;i++)tabD[i]=Double.parseDouble(tab[i]);
-     * }
-     * rm.hoursCorrespondingToTimePoints=hours;
-     * <p>
-     * <p>
-     * int ind=hasHours?16:15;
-     * boolean first;
-     * if(debug)System.out.println("Pl"+str[ind]);
-     * while(str[ind].contains("<plant")) {
-     * ind=ind+1+3;//<root then <point
-     * Root rPrim=new Root(null, rm, "",1);
-     * first=true;
-     * if(debug)System.out.println("Poiprim"+str[ind]);
-     * while(str[ind].contains("<point")) {
-     * String[]vals=str[ind].replace("<point ","").replace("/>", "").replace("\"", "").split(" ");
-     * rPrim.addNode(Double.parseDouble(vals[12].split("=")[1]),Double.parseDouble(vals[13].split("=")[1]),0,0,0,0,first);
-     * if(first)first=false;
-     * ind++;
-     * if(debug)System.out.println("-Poiprim"+str[ind]);
-     * }
-     * ind+=2;
-     * while(str[ind].contains("<point")) {
-     * ind++;
-     * }
-     * rPrim.computeDistances();
-     * rm.rootList.add(rPrim);
-     * ind=ind+2;//<root or </root
-     * if(debug)System.out.println("root lat"+str[ind]);
-     * while(str[ind].contains("<root")) {//lateral
-     * ind=ind+3;//point
-     * Root rLat=new Root(null, rm, "",2);
-     * first=true;
-     * if(debug)System.out.println("PoiLat"+str[ind]);
-     * while(str[ind].contains("<point")) {
-     * String[]vals=str[ind].replace("<point ","").replace("/>", "").replace("\"", "").split(" ");
-     * //						   for(int i=0;i<vals.length;i++)System.out.println("Tab["+i+"]="+vals[i]);
-     * rLat.addNode(Double.parseDouble(vals[14].split("=")[1]),Double.parseDouble(vals[15].split("=")[1]),0,0,0,0,first);
-     * if(first)first=false;
-     * ind++;
-     * if(debug)System.out.println("-PoiLat?"+str[ind]);
-     * }
-     * ind+=2;
-     * while(str[ind].contains("<point")) {
-     * ind++;
-     * }
-     * rLat.computeDistances();
-     * rPrim.attachChild(rLat);
-     * rLat.attachParent(rPrim);
-     * rm.rootList.add(rLat);
-     * ind=ind+3;//<root or </root
-     * if(debug)System.out.println("-root lat?"+str[ind]);
-     * }
-     * ind=ind+2;//<plant or nothing
-     * if(debug)System.out.println("-plant?"+str[ind]);
-     * }
-     * System.out.println("End of plant because"+str[ind]);
-     * return rm;
-     * }
-     */
 
     public Root getPrimaryRootOfPlant(int plant) {
         for (Root r : rootList) {
@@ -1065,7 +991,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             pw.println(stmt);
             if (last) pw.flush();
         }
-        FSR.write("CSV data transfer completed for 'Marks'.");
+        IJ.log("CSV data transfer completed for 'Marks'.");
     }
 
     /**
@@ -1284,10 +1210,10 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * Log read error.
      */
     private void logReadError() {
-        FSR.write("An I/O error occured while attemping to read the datafile.");
-        FSR.write("A new empty datafile will be created.");
-        FSR.write("Backup versions of the datafile, if any, can be loaded");
-        FSR.write("using the File -> Use backup datafile menu item.");
+        IJ.log("An I/O error occured while attemping to read the datafile.");
+        IJ.log("A new empty datafile will be created.");
+        IJ.log("Backup versions of the datafile, if any, can be loaded");
+        IJ.log("using the File -> Use backup datafile menu item.");
     }
 
     /**
@@ -1355,7 +1281,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
                     nodeMeta = nodeMeta.getNextSibling();
                 }
                 dpi = getDPI(unit, res);
-                FSR.write("resolution = " + dpi);
+                IJ.log("resolution = " + dpi);
                 pixelSize = 2.54f / dpi;
             }
 
@@ -1372,7 +1298,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
                             // Get the Roots
                             if (rootName.equals("root")) {
-                                new Root(dpi, nodeRoot, true, null, this, origin);
+                                String childRootID = nodeDOM.getAttributes().getNamedItem("label").getNodeValue();
+                                new Root(dpi, childRootID, nodeRoot, true, null, this, origin);
                             }
                             nodeRoot = nodeRoot.getNextSibling();
                         }
@@ -1382,7 +1309,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             }
             nodeDOM = nodeDOM.getNextSibling();
         }
-        FSR.write(rootList.size() + " root(s) were created");
+        IJ.log(rootList.size() + " root(s) were created");
         setDPI(dpi);
     }
 
@@ -1465,10 +1392,11 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
                             // Get the Roots
                             if (rootName.equals("root")) {
+                                String childRootID = nodeDOM.getAttributes().getNamedItem("label").getNodeValue();
                                 System.out.println("nodeRoot=" + nodeRoot);
                                 System.out.println("origin=" + origin);
                                 System.out.println("dpi=" + dpi);
-                                new Root(dpi, nodeRoot, true, null, this, origin);
+                                new Root(dpi, childRootID, nodeRoot, true, null, this, origin);
                             }
                             nodeRoot = nodeRoot.getNextSibling();
                         }
@@ -1478,7 +1406,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             }
             nodeDOM = nodeDOM.getNextSibling();
         }
-        FSR.write(rootList.size() + " root(s) were created");
+        IJ.log(rootList.size() + " root(s) were created");
         setDPI(dpi);
     }
 
@@ -1573,7 +1501,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             }
             nodeDOM = nodeDOM.getNextSibling();
         }
-        FSR.write(rootList.size() + " root(s) were created");
+        IJ.log(rootList.size() + " root(s) were created");
         setDPI(dpi);
     }
 
@@ -3553,15 +3481,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
     }
 
     /**
-     * Get the convexhull area of all the roots in the image.
-     *
-     * @return the convex hull area
-     */
-    public float getConvexHullArea() {
-        return 0;
-    }
-
-    /**
      * Get the convexhull of all the roots in the image. Uses the native image functions
      *
      * @return the convex hull
@@ -3631,11 +3550,11 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             for (Scene scene : ((RootModel4Parser) rootModel).getScenes()) {
                 for (Plant plant : scene.getPlants()) {
                     for (Root4Parser root : plant.getFirstOrderRoots()) {
-                        new Root(1, root, true, null, rm, ((RootModel4Parser) rootModel).getSoftware(), time);
+                        new Root(dpi, root, true, null, rm, ((RootModel4Parser) rootModel).getSoftware(), time);
                     }
                 }
             }
-            FSR.write(rootList.size() + " root(s) were created");
+            IJ.log(rootList.size() + " root(s) were created");
             setDPI(dpi);
             return rm;
         } else {

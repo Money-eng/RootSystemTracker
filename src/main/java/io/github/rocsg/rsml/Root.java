@@ -28,7 +28,7 @@ public class Root implements Comparable<Root>, IRootParser {
     /**
      * The no name.
      */
-    static String noName = FSR.prefs.get("root_ID", "root_");
+    static String noName = "000";
     /**
      * The next root key.
      */
@@ -154,30 +154,32 @@ public class Root implements Comparable<Root>, IRootParser {
      * @param rm         the rm
      * @param origin     the origin
      */
-    public Root(float dpi, org.w3c.dom.Node parentDOM, boolean common, Root parentRoot, RootModel rm, String origin) {
+    public Root(float dpi, String rootID, org.w3c.dom.Node parentDOM, boolean common, Root parentRoot, RootModel rm, String origin) {
         this.dpi = dpi;
         pixelSize = ((float) 2.54 / dpi);
         nNodes = 0;
         firstNode = lastNode = null;
         markList = new Vector<Mark>();
-        rootID = noName;
+        this.rootID = rootID;
+        noName = rootID.split("_")[1];
         nextRootKey++;
         readRSML(parentDOM, rm, parentRoot, origin);
     }
 
-    public Root(float dpi, IRootParser parentBaseRoot, boolean common, Root parentRoot, RootModel rm, String origin, float time) {
+    public Root(float dpi, IRootParser baseRoot, boolean common, Root parentRoot, RootModel rm, String origin, float time) {
         this.dpi = dpi;
         pixelSize = ((float) 2.54 / dpi);
         nNodes = 0;
         firstNode = lastNode = null;
         markList = new Vector<Mark>();
-        rootID = noName;
+        // detect number after the "root_" in the rootID
         nextRootKey++;
-        getInfoFromRootParser(parentBaseRoot, rm, parentRoot, origin, time);
+        getInfoFromRootParser(baseRoot, rm, parentRoot, origin, time); // done here this.rootID = rootID;
     }
 
     private void getInfoFromRootParser(IRootParser parentBaseRoot, RootModel rm, Root parentRoot, String origin, float time) {
         this.rootID = parentBaseRoot.getLabel();
+        noName = rootID.split("_")[1];
         this.rootKey = parentBaseRoot.getId();
         this.poIndex = rm.getIndexFromPo(parentBaseRoot.getPoAccession());
         this.parentKey = parentBaseRoot.getParentId();
@@ -242,7 +244,7 @@ public class Root implements Comparable<Root>, IRootParser {
         }
 
         //for (IRootParser child : parentBaseRoot.getChildren()) {
-          //  new Root(dpi, child, true, this, rm, origin, time);
+        //  new Root(dpi, child, true, this, rm, origin, time);
         //}
 
         if (rootKey.isEmpty()) rootKey = this.getNewRootKey();
@@ -428,7 +430,7 @@ public class Root implements Comparable<Root>, IRootParser {
         }
 
 
-        
+
 
 
         Node prev = null;
@@ -1319,7 +1321,8 @@ public class Root implements Comparable<Root>, IRootParser {
             }
             // Read child roots
             else if (nName.equals("root")) {
-                new Root(dpi, nodeDOM, true, this, rm, origin);
+                String childRootID = nodeDOM.getAttributes().getNamedItem("label").getNodeValue();
+                new Root(dpi, childRootID, nodeDOM, true, this, rm, origin);
             }
             nodeDOM = nodeDOM.getNextSibling();
         }
@@ -1443,7 +1446,8 @@ public class Root implements Comparable<Root>, IRootParser {
             }
             // Read child roots
             else if (nName.equals("root")) {
-                Root r = new Root(dpi, nodeDOM, true, this, rm, origin);
+                String childRootID = nodeDOM.getAttributes().getNamedItem("label").getNodeValue();
+                Root r = new Root(dpi, childRootID, nodeDOM, true, this, rm, origin);
                 r.attachParent(this);
                 this.attachChild(r);
                 rm.rootList.add(r);
@@ -2327,15 +2331,6 @@ public class Root implements Comparable<Root>, IRootParser {
     }
 
     /**
-     * Get the Plant Ontology accession of the root.
-     *
-     * @return the po accession
-     */
-    public String getPoAccession() {
-        return FSR.listPoNames[poIndex];
-    }
-
-    /**
      * Set the plant ontology accession to a new value.
      *
      * @param po the new po accession
@@ -2455,6 +2450,11 @@ public class Root implements Comparable<Root>, IRootParser {
     @Override
     public String getLabel() {
         return label;
+    }
+
+    @Override
+    public String getPoAccession() {
+        return Integer.toString(poIndex);
     }
 
     @Override

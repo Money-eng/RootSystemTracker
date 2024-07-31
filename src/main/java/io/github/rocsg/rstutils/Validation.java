@@ -6,7 +6,6 @@ import ij.ImagePlus;
 import ij.plugin.Duplicator;
 import ij.plugin.frame.PlugInFrame;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
-import io.github.rocsg.rsml.FSR;
 import io.github.rocsg.rsml.RootModel;
 
 public class Validation extends PlugInFrame {
@@ -78,7 +77,6 @@ public class Validation extends PlugInFrame {
 //		imgSource.show();
 
 
-        FSR sr = new FSR();
         System.out.println(pathRSML);
         IJ.showMessage("Not yet implemented : visualValidationOfAnnotationFacingTimeDate in io.github.rocsg.rstutils.Validation.java");
         RootModel rm = null;//RootModel.RootModelWildReadAnnotationFromRsml(pathRSML);

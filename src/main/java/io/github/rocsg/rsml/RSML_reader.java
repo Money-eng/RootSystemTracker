@@ -28,11 +28,6 @@ public class RSML_reader extends PlugInFrame {
     private static final long serialVersionUID = 1L;
 
     /**
-     * The sr.
-     */
-    public static FSR sr;
-
-    /**
      * The rsml gui.
      */
     public static RSMLGUI rsmlGui;
@@ -52,8 +47,6 @@ public class RSML_reader extends PlugInFrame {
             IJ.error("RSML Reader is already running");
             return;
         }
-
-        (sr = new FSR()).initialize();
         rsmlGui = new RSMLGUI();
     }
 

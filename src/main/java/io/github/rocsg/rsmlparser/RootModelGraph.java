@@ -8,12 +8,10 @@ import ij.measure.SplineFitter;
 import ij.process.ImageProcessor;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.registration.ItkTransform;
-import io.github.rocsg.rsml.FSR;
 import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
-import io.github.rocsg.rstutils.BlockMatchingRegistrationRootModel;
 import math3d.Point3d;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
 import org.apache.commons.math3.ml.clustering.Cluster;
@@ -52,8 +50,8 @@ public class RootModelGraph {
     List<ItkTransform> transforms;
 
     public RootModelGraph() throws IOException {
-        //this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\12_stack_cropped.tif");
-        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R07_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\12_stack_cropped.tif");
+        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\12_stack_cropped.tif");
+        //this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R07_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\12_stack_cropped.tif");
     }
 
     /**
@@ -134,10 +132,6 @@ public class RootModelGraph {
         });
 
         /*****DEBUG*****/
-
-        // Initialize FSR and create RootModels
-        FSR sr = new FSR();
-        sr.initialize();
         RootModel rms = new RootModel();
         rms = (RootModel) rms.createRootModels(result, (float) PipelineParamHandler.subsamplingFactor);
 
@@ -148,12 +142,12 @@ public class RootModelGraph {
 
         // Read all the transforms and apply them
         ImagePlus imgInitSize = new ImagePlus(originalScaledImagePath);
+        imgInitSize = new ImagePlus("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\NewRSMLs\\img.tif\\");
         //displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
 
-        //RootModel basicRM = new RootModel();
-        //basicRM = (RootModel) basicRM.createRootModels(result, (float) PipelineParamHandler.subsamplingFactor);
-        //basicRM.adjustRootModel();
-        //displayOnImage(createGraphFromRM(basicRM), imgInitSize, false).show();
+        RootModel basicRM = new RootModel();
+        basicRM = (RootModel) basicRM.createRootModels(result, (float)1);
+        displayOnImage(createGraphFromRM(basicRM), imgInitSize, true).show();
 
 
         readAndApplyTransforms(transformerPath, rms, refImage, imgInitSize);
@@ -170,7 +164,7 @@ public class RootModelGraph {
         if (!Files.exists(path)) Files.createDirectories(path);
         rms.writeRSML3D(new File(path2NewRSML).getAbsolutePath().replace("\\", "/"), "", true, false);
 
-        BlockMatchingRegistrationRootModel.setupAndRunRsmlBlockMatchingRegistration(rms, refImage, true);
+        //BlockMatchingRegistrationRootModel.setupAndRunRsmlBlockMatchingRegistration(rms, refImage, true);
 
         //PlantReconstruction pr = new PlantReconstruction(rms);*/
 

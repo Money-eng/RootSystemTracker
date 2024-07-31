@@ -5,7 +5,6 @@ import ij.ImageJ;
 import ij.ImagePlus;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.registration.TransformUtils;
-import io.github.rocsg.rsml.FSR;
 import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
@@ -17,8 +16,6 @@ public class SegmentToSegment {
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
         String mainDataDir = "/home/rfernandez/Bureau/A_Test/RSML";
-        FSR sr = (new FSR());
-        sr.initialize();
         String ml = "1";
         String boite = "00001";
         double proximityThreshold = 3;

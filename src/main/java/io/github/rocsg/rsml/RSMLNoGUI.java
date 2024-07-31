@@ -30,10 +30,6 @@ public class RSMLNoGUI {
      */
     private final ImagePlus imgSource = null;
 
-    /**
-     * The sr.
-     */
-    private FSR sr;
 
     /**
      * Instantiates a new RSML no GUI.
@@ -71,7 +67,6 @@ public class RSMLNoGUI {
      * @return the preview
      */
     public ImagePlus getPreview(String imgPath, String rsmlPath, int lineWidth, boolean realWidth, boolean makeConvexHull, double ratioColor) {
-        (sr = new FSR()).initialize();
         RootModel model = new RootModel(rsmlPath);
 
 
@@ -95,7 +90,6 @@ public class RSMLNoGUI {
      * @return the preview grey scale
      */
     public ImagePlus getPreviewGreyScale(String imgPath, String rsmlPath, boolean makeConvexHull) {
-        (sr = new FSR()).initialize();
         RootModel model = new RootModel(rsmlPath);
         ImagePlus imgSource = IJ.openImage(imgPath);
         int w = imgSource.getWidth();
@@ -116,7 +110,6 @@ public class RSMLNoGUI {
      * @return the transformed preview
      */
     public ImagePlus getTransformedPreview(String imgPath, String rsmlPath, int lineWidth, boolean realWidth, boolean makeConvexHull, double ratioColor) {
-        (sr = new FSR()).initialize();
         RootModel model = new RootModel(rsmlPath);
 
         ImagePlus imgRef = IJ.openImage(imgPath);

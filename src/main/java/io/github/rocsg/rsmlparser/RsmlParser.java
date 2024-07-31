@@ -31,8 +31,8 @@ public class RsmlParser {
         this.path2RSMLs = path2RSMLs;
         RsmlParser.removedDates = (ArrayList<LocalDate>) removedDates;
 
-        RSMLFileUtils.backupStrategy = SelectionStrategy.FIRST_VERSION;
-        strategy = SelectionStrategy.CLOSEST_PIXEL_VALUE;
+        RSMLFileUtils.backupStrategy = SelectionStrategy.LAST_VERSION;
+        strategy = SelectionStrategy.MOST_COMPLEXITY;
     }
 
     public static void main(String[] args) throws IOException {

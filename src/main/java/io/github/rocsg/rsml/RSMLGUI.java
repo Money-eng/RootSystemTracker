@@ -20,6 +20,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FilenameFilter;
+import java.util.Objects;
 
 // TODO: Auto-generated Javadoc
 
@@ -244,8 +245,8 @@ public class RSMLGUI extends JFrame implements ActionListener {
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 String fName = fc.getSelectedFile().toString();
                 batchSourceFolder.setText(fName);
-            } else FSR.write("Choose folder cancelled.");
-        } else if (e.getActionCommand() == "BATCH_EXPORT") {
+            } else  IJ.log("Choose folder cancelled.");
+        } else if (e.getActionCommand().equals("BATCH_EXPORT")) {
             batchExport();
         }
 
@@ -274,7 +275,7 @@ public class RSMLGUI extends JFrame implements ActionListener {
         });
 
         if (rsml.length < 100) {
-            FSR.write("Batch export started for " + rsml.length + " files");
+            IJ.log("Batch export started for " + rsml.length + " files");
 
             // Open the different RSML files, retriev their data and get their size.
             RootModel[] models = new RootModel[rsml.length];
@@ -307,7 +308,7 @@ public class RSMLGUI extends JFrame implements ActionListener {
                     }
                 }
                 if (!batchImage.isSelected() && batchSave.isSelected()) {
-                    FSR.write(rsml[i].getName());
+                    IJ.log(rsml[i].getName());
                     ImagePlus ip = new ImagePlus(rsml[i].getName(), models[i].createImage(batchColorJCB.getSelectedIndex() == 0, Integer.valueOf(batchLineWidth.getText()), batchRealWidth.isSelected(), batchConvex.isSelected()));
                     IJ.save(ip, this.batchSourceFolder.getText() + "/images/" + rsml[i].getName() + ".jpg");
                 }
@@ -336,15 +337,15 @@ public class RSMLGUI extends JFrame implements ActionListener {
                 ip.show();
             }
         } else {
-            FSR.write("Batch export started for " + rsml.length + " files");
+            IJ.log("Batch export started for " + rsml.length + " files");
             ResultsTable rt = new ResultsTable();
             // Open the different RSML files, retriev their data and get their size.
             RootModel model;
-            for (int i = 0; i < rsml.length; i++) {
-                model = new RootModel(rsml[i].getAbsolutePath());
+            for (File file : rsml) {
+                model = new RootModel(file.getAbsolutePath());
                 if (batchSave.isSelected()) {
-                    ImagePlus ip = new ImagePlus(rsml[i].getName(), model.createImage(batchColorJCB.getSelectedIndex() == 0, Integer.valueOf(batchLineWidth.getText()), batchRealWidth.isSelected(), batchConvex.isSelected()));
-                    IJ.save(ip, this.batchSourceFolder.getText() + "/images/" + rsml[i].getName() + ".jpg");
+                    ImagePlus ip = new ImagePlus(file.getName(), model.createImage(batchColorJCB.getSelectedIndex() == 0, Integer.valueOf(batchLineWidth.getText()), batchRealWidth.isSelected(), batchConvex.isSelected()));
+                    IJ.save(ip, this.batchSourceFolder.getText() + "/images/" + file.getName() + ".jpg");
                 }
 
                 // Send the results to the Result Table
@@ -352,21 +353,21 @@ public class RSMLGUI extends JFrame implements ActionListener {
                     int sel = batchJCB.getSelectedIndex();
                     switch (sel) {
                         case 0:
-                            model.sendImageData(rt, rsml[i].getName());
+                            model.sendImageData(rt, file.getName());
                             break;
                         case 1:
-                            model.sendRootData(rt, rsml[i].getName());
+                            model.sendRootData(rt, file.getName());
                             break;
                         case 2:
-                            model.sendNodeData(rt, rsml[i].getName());
+                            model.sendNodeData(rt, file.getName());
                             break;
                     }
                 }
             }
-            rt.show(batchJCB.getSelectedItem().toString());
+            rt.show(Objects.requireNonNull(batchJCB.getSelectedItem()).toString());
         }
 
-        FSR.write("Export done for " + rsml.length + " files");
+        IJ.log("Export done for " + rsml.length + " files");
     }
 }
 

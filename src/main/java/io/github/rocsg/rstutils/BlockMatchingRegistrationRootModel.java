@@ -11,7 +11,6 @@ import io.github.rocsg.fijiyama.common.VitiDialogs;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.fijiyamaplugin.RegistrationAction;
 import io.github.rocsg.fijiyama.registration.*;
-import io.github.rocsg.rsml.FSR;
 import io.github.rocsg.rsml.RootModel;
 import math3d.Point3d;
 import org.itk.simple.DisplacementFieldTransform;
@@ -246,11 +245,8 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
      */
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
-        FSR fsr = new FSR();
-        fsr.initialize();
-//		setupAndRunRsmlBlockMatchingRegistration("/home/rfernandez/Bureau/A_Test/BPMP/Reproduction_01_avec_reseau_morgan/Train/20200826-AC-PIP_azote_Seq 6_Boite 00005_IdentificationFailed-Visu.jpg");
-        String dir = "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\";
-        String img = "13_05_2018_HA01_R004_h053.jpg";
+        String dir = "D:\\loaiu\\MAM5\\Stage\\data\\Test\\Output\\machin\\testBM\\";
+        String img = "22_registered_stack.tif";
 
         setupAndRunRsmlBlockMatchingRegistration(dir + img, true, true);
     }
@@ -389,9 +385,6 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         IJ.log("Expected total computation time = " + nMins + " minutes");
         Timer t = new Timer();
         int N = filesList[0].length;
-        FSR sr = (new FSR());
-        sr.initialize();
-
         if (display) multiThread = false;
 
         if (multiThread) {

@@ -5,7 +5,6 @@ import ij.ImagePlus;
 import ij.gui.Roi;
 import io.github.rocsg.fijiyama.common.*;
 import io.github.rocsg.fijiyama.registration.TransformUtils;
-import io.github.rocsg.rsml.FSR;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
@@ -270,8 +269,6 @@ public class RegionAdjacencyGraphPipeline {
         System.out.println("Running the plongement");
 
         //Prepare output data storage
-        FSR sr = (new FSR());
-        sr.initialize();
         RootModel rm = new RootModel();
         rm.pixelSize = (float) (pph.originalPixelSize * PipelineParamHandler.subsamplingFactor);
         double[] hoursExtremities = pph.getHoursExtremities(indexImg);
