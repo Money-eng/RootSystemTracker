@@ -1,4 +1,4 @@
-package io.github.rocsg.rsmlparser;
+package io.github.rocsg.rsmlparser.RSML2D;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -11,6 +11,7 @@ import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsmlparser.IRootModelParser;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
 import math3d.Point3d;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
@@ -37,7 +38,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.github.rocsg.rsmlparser.RsmlParser.getDate;
+import static io.github.rocsg.rsmlparser.RSML2D.Rsml2DParser.getDate;
 import static io.github.rocsg.rstplugin.PipelineParamHandler.configurePipelineParams;
 
 public class RootModelGraph {
@@ -50,8 +51,7 @@ public class RootModelGraph {
     List<ItkTransform> transforms;
 
     public RootModelGraph() throws IOException {
-        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R04_01\\12_stack_cropped.tif");
-        //this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R07_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Process\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output-Copie\\Process\\B73_R07_01\\12_stack_cropped.tif");
+        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\\\B73_R12_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\12_stack_cropped.tif");
     }
 
     /**
@@ -84,6 +84,21 @@ public class RootModelGraph {
         configMap.put("marginRegisterLeft", "5");
         configMap.put("marginRegisterUp", "248");
         configMap.put("marginRegisterDown", "5");
+
+        // take and replace the above variables with the ones presentin a csv file
+        String csvPath = "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\" + "InfoSerieRootSystemTracker.csv";
+        // read the csv file
+        try {
+            List<String> lines = Files.readAllLines(Paths.get(csvPath));
+            for (String line : lines) {
+                String[] parts = line.split(",");
+                if (parts.length == 2) {
+                    configMap.put(parts[0], parts[1]);
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         configurePipelineParams(configMap);
 
@@ -139,23 +154,25 @@ public class RootModelGraph {
 
         // if removedDatesIndex is not empty, remove the corresponding slices from the image
         image = refImage;
+        // calibrate image
+        IJ.run(image, "Enhance Contrast", "saturated=0.35");
+
 
         // Read all the transforms and apply them
         ImagePlus imgInitSize = new ImagePlus(originalScaledImagePath);
-        imgInitSize = new ImagePlus("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R04_01\\NewRSMLs\\img.tif\\");
         //displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
 
-        RootModel basicRM = new RootModel();
-        basicRM = (RootModel) basicRM.createRootModels(result, (float)1);
-        displayOnImage(createGraphFromRM(basicRM), imgInitSize, true).show();
-
+//        RootModel basicRM = new RootModel();
+//        basicRM = (RootModel) basicRM.createRootModels(result, (float)1);
+//        displayOnImage(createGraphFromRM(basicRM), imgInitSize, true).show();
 
         readAndApplyTransforms(transformerPath, rms, refImage, imgInitSize);
-        rms.adjustRootModel();
+        displayOnImage(createGraphFromRM(rms), refImage, true).show();
+        rms.adjustRootModel(refImage);
 
 
-        //ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage);
-        //img3.show();
+        ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage);
+        img3.show();
 
         // save RootModel before and after adjustment
         String path2NewRSML = path2RSMLs + "\\NewRSMLs\\" + LocalDate.now() + ".rsml";
@@ -431,8 +448,8 @@ public class RootModelGraph {
      * @throws IOException If an I/O error occurs
      */
     private Map<LocalDate, List<IRootModelParser>> parseRsmlFiles(String path2RSMLs, List<LocalDate> removedDates) throws IOException {
-        RsmlParser rsmlParser = new RsmlParser(path2RSMLs, removedDates);
-        Map<LocalDate, List<IRootModelParser>> result = RsmlParser.getRSMLsInfos(Paths.get(rsmlParser.path2RSMLs));
+        Rsml2DParser rsml2DParser = new Rsml2DParser(path2RSMLs, removedDates);
+        Map<LocalDate, List<IRootModelParser>> result = Rsml2DParser.getRSMLsInfos(Paths.get(rsml2DParser.path2RSMLs));
         result.forEach((date, rootModel4Parsers) -> {
             System.out.println("Date : " + date);
             rootModel4Parsers.forEach(System.out::println);
@@ -460,9 +477,8 @@ public class RootModelGraph {
      * @param rms             The RootModel
      * @param res2            The ImagePlus image
      * @param imgInitSize     The ImagePlus image of the initial size
-     * @throws IOException If an I/O error occurs
      */
-    private void readAndApplyTransforms(String transformerPath, RootModel rms, ImagePlus res2, ImagePlus imgInitSize) throws IOException {
+    private void readAndApplyTransforms(String transformerPath, RootModel rms, ImagePlus res2, ImagePlus imgInitSize) {
         // Define these as class variables if the method is called multiple times
         final Pattern indexPattern = Pattern.compile("_(\\d+)\\.");
         final PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher("glob:**.transform.tif");
@@ -528,6 +544,7 @@ public class RootModelGraph {
 
 
         for (ItkTransform transform : this.transforms) {
+            System.out.println("Index : " + (transforms.indexOf(transform) + 1));
             rms.applyTransformToGeometry(transform, transforms.indexOf(transform) + 1);
         }
         rms.applyTransformToGeometry(linearTransform);
@@ -733,6 +750,7 @@ public class RootModelGraph {
         img.setTitle("Interpolated points - Polynomial");
         img.show();
     }
+
 
     /////////////// interpolating points ///////////////
 

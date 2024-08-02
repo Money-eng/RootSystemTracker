@@ -140,8 +140,9 @@ public class Root implements Comparable<Root>, IRootParser {
 
     /*For converting between rsmls and temporal rsmls*/
     String label;
-    public List<io.github.rocsg.rsmlparser.Property> properties;
-    public List<io.github.rocsg.rsmlparser.Function> functions;
+    private List<io.github.rocsg.rsmlparser.Property> properties;
+    private List<io.github.rocsg.rsmlparser.Function> functions;
+    private List<io.github.rocsg.rsmlparser.Annotation> annotations;
 
     /**
      * Constructor
@@ -296,7 +297,7 @@ public class Root implements Comparable<Root>, IRootParser {
         markList = new Vector<Mark>();
         this.rootID = rootID;
         if (parentRoot != null) {
-            attachParent(parentRoot); // appel setParentNode sur lui même ???, comment on créé la seconde racine sachant que firstnode et lastnode sont nuls ???
+            attachParent(parentRoot);
             parentRoot.attachChild(this);
         }
         nextRootKey++;
@@ -2437,8 +2438,6 @@ public class Root implements Comparable<Root>, IRootParser {
         }
         return false;
     }
-
-
 
     //// Implementation for IRootParser
 

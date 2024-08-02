@@ -42,6 +42,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static io.github.rocsg.rsmlparser.RSML2DplusT.RSMLParser2DT.rootModelReadFromRsml;
+
 /**
  * The Class RsmlExpert_Plugin.
  */
@@ -679,7 +681,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         registeredStack = IJ.openImage(new File(stackPath).getAbsolutePath());
 
         // Load the RSML model from the specified path
-        currentModel = RootModel.RootModelWildReadFromRsml(rsmlPath);
+        currentModel = rootModelReadFromRsml(rsmlPath).get(0); // TODO DANGER
 
         // Clean the RSML model and resample the flying roots
         System.out.println(currentModel.cleanWildRsml());

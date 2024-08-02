@@ -1,44 +1,50 @@
 package io.github.rocsg.rsmlparser;
 
+import io.github.rocsg.rsmlparser.RSML2D.Root4Parser;
+
 import java.util.ArrayList;
 import java.util.List;
 
 // Plant.java
 public class Plant {
-    final List<Root4Parser> roots;
+    public String id;
+    public String label;
+    final List<IRootParser> roots;
 
     public Plant() {
         this.roots = new ArrayList<>();
+        id = "";
+        label = "";
     }
 
-    public void addRoot(Root4Parser root) {
+    public void addRoot(IRootParser root) {
         this.roots.add(root);
     }
 
     public List<String> getListID() {
         List<String> listID = new ArrayList<>();
-        for (Root4Parser root : roots) {
-            listID.add(root.id);
+        for (IRootParser root : roots) {
+            listID.add(root.getId());
         }
         return listID;
     }
 
-    public Root4Parser getRootByID(String id) {
-        for (Root4Parser root : roots) {
-            if (root.id.equals(id)) {
+    public IRootParser getRootByID(String id) {
+        for (IRootParser root : roots) {
+            if (root.getId().equals(id)) {
                 return root;
             }
         }
         return null;
     }
 
-    public List<Root4Parser> getRoots() {
+    public List<IRootParser> getRoots() {
         return roots;
     }
 
-    public List<Root4Parser> getFirstOrderRoots() {
-        List<Root4Parser> firstOrderRoots = new ArrayList<>();
-        for (Root4Parser root : roots) {
+    public List<IRootParser> getFirstOrderRoots() {
+        List<IRootParser> firstOrderRoots = new ArrayList<>();
+        for (IRootParser root : roots) {
             if (root.getOrder() == 1) {
                 firstOrderRoots.add(root);
             }
@@ -52,4 +58,4 @@ public class Plant {
                 "roots=" + roots +
                 "}\n";
     }
-} // TODO : strong assumption : No new plant is created in the same scene
+}

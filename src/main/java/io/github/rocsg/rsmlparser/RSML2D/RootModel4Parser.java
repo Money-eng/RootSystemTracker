@@ -1,8 +1,12 @@
-package io.github.rocsg.rsmlparser;
+package io.github.rocsg.rsmlparser.RSML2D;
 
 import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsmlparser.IRootModelParser;
+import io.github.rocsg.rsmlparser.Metadata;
+import io.github.rocsg.rsmlparser.Scene;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,31 +31,31 @@ public class RootModel4Parser implements IRootModelParser {
 
     // get metadata elements
     public float getVersion() {
-        return metadatas.version;
+        return metadatas.getVersion();
     }
 
     public String getUnit() {
-        return metadatas.unit;
+        return metadatas.getUnit();
     }
 
     public float getResolution() {
-        return metadatas.resolution;
+        return metadatas.getResolution();
     }
 
     public LocalDate getModifDate() {
-        return metadatas.modifDate;
+        return metadatas.getModifDate();
     }
 
     public String getSoftware() {
-        return metadatas.software;
+        return metadatas.getSoftware();
     }
 
     public String getUser() {
-        return metadatas.user;
+        return metadatas.getUser();
     }
 
     public String getFileKey() {
-        return metadatas.fileKey;
+        return metadatas.getFileKey();
     }
 
     public List<Scene> getScenes() {

@@ -72,7 +72,6 @@ public class Node {
      */
     boolean pCross01 = false, pCross23 = false;
 
-
     /**
      * Constructor.
      *
@@ -143,6 +142,18 @@ public class Node {
      */
     public static float distanceBetween(Node n1, Node n2) {
         return (float) Point2D.distance(n1.x, n1.y, n2.x, n2.y);
+    }
+
+    /**
+     * Distance From.
+     *
+     * @param n1 the n 1
+     * @param n2 the n 2
+     * @return the float
+     */
+    public static float distanceFrom(Node n1, Node n2) throws RuntimeException {
+        if (n2 == null)  throw new RuntimeException("Not in hierarchy");
+        return n1.child.equals(n2) ? distanceBetween(n1, n2) : distanceBetween(n1, n1.child) + distanceFrom(n1.child, n2);
     }
 
     /**

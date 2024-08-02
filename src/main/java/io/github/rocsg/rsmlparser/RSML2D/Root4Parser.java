@@ -1,17 +1,19 @@
-package io.github.rocsg.rsmlparser;
+package io.github.rocsg.rsmlparser.RSML2D;
+
+import io.github.rocsg.rsmlparser.*;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
-// Implement Root4Parser class
 public class Root4Parser implements IRootParser {
     public static int numFunctions;
     public final LocalDate currentTime;
-    final String id;
+    protected final String id;
     final String poAccession;
     final List<Function> functions;
+    final List<Annotation> annotations;
     private final String label;
     private final List<Property> properties;
     private final int order;
@@ -25,6 +27,7 @@ public class Root4Parser implements IRootParser {
         this.poAccession = poAccession;
         this.properties = new ArrayList<>();
         this.functions = new ArrayList<>();
+        this.annotations = new ArrayList<>();
         this.order = order;
         this.parent = parent;
         this.children = new ArrayList<>();
@@ -33,24 +36,6 @@ public class Root4Parser implements IRootParser {
         }
         numFunctions = 2;
         this.currentTime = currentTime;
-    }
-
-    public static void collapseAll(Map<String, List<Root4Parser>> rootMap) {
-        for (String key : rootMap.keySet()) {
-            List<Root4Parser> roots = rootMap.get(key);
-            // all these roots have not the same number of coordinates but the first ones are the same
-            // We will make a mean out of the first coordinates of as much roots as possible
-            double meanX = 0;
-            double meanY = 0;
-            int n = 0;
-            for (Root4Parser root : roots) {
-                if (root.geometry != null) {
-                    meanX += root.geometry.get2Dpt().get(0).getX();
-                    meanY += root.geometry.get2Dpt().get(0).getY();
-                    n++;
-                }
-            }
-        }
     }
 
     public static List<Root4Parser> getTotalChildrenList(List<Root4Parser> roots) { // supposed to be ordered by time, increasing order
@@ -64,6 +49,35 @@ public class Root4Parser implements IRootParser {
             }
         }
         return totalChildren;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Root4Parser that = (Root4Parser) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    public void addProperty(Property property) {
+        this.properties.add(property);
+    }
+
+    public void addFunction(Function function) {
+        this.functions.add(function);
+    }
+
+    public void addAnnotation(Annotation annotation) {
+        this.annotations.add(annotation);
+    }
+
+    public List<Annotation> getAnnotations() {
+        return annotations;
     }
 
     @Override
@@ -96,7 +110,6 @@ public class Root4Parser implements IRootParser {
         if (child instanceof Root4Parser) children.add(child);
         else {
             System.out.println("Only Root4Parser can be added as a child");
-            //System.exit(1);
         }
     }
 
@@ -113,14 +126,6 @@ public class Root4Parser implements IRootParser {
     @Override
     public String getParentLabel() {
         return parent == null ? null : parent.getLabel();
-    }
-
-    public void addProperty(Property property) {
-        this.properties.add(property);
-    }
-
-    public void addFunction(Function function) {
-        this.functions.add(function);
     }
 
     @Override

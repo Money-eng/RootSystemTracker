@@ -1,4 +1,4 @@
-package io.github.rocsg.rsmlparser;
+package io.github.rocsg.rsmlparser.RSML2D;
 
 import ij.ImagePlus;
 import org.w3c.dom.Document;
