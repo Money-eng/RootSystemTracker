@@ -8,56 +8,324 @@ import io.github.rocsg.fijiyama.registration.TransformUtils;
 import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.statistics.HistogramDataset;
 
-import java.util.ArrayList;
+import javax.swing.*;
+import java.awt.*;
+import java.io.File;
+import java.util.List;
+import java.util.*;
 
+/**
+ * SegmentToSegment class processes root models and generates visual representations of crossings and root complexities.
+ */
 public class SegmentToSegment {
 
+    /**
+     * Main method to execute the program.
+     *
+     * @param args Command line arguments (not used).
+     */
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
-        String mainDataDir = "/home/rfernandez/Bureau/A_Test/RSML";
-        String ml = "1";
-        String boite = "00001";
-        double proximityThreshold = 3;
-        RootModel rm = RootModel.RootModelWildReadFromRsml(mainDataDir + "/4_RSML/ML" + ml + "_Boite_" + boite + ".rsml");
-        ImagePlus seqReg = IJ.openImage("/home/rfernandez/Bureau/A_Test/RSML/1_Registered/ML" + ml + "_Boite_" + boite + ".tif");
+        String mainDataDir = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\";
+        double proximityThreshold = 1.0; // Proximity threshold for detecting crossings
+        RootModel rm = RootModel.RootModelWildReadFromRsml(mainDataDir + "61_graph_expertized.rsml");
+        ImagePlus seqReg = IJ.openImage(mainDataDir + "22_registered_stack.tif");
         ImagePlus img = drawComplexByTime(rm, seqReg, proximityThreshold);
         img.show();
+
+        // Directory traversal to find matching folders
+        String rootDirectory = "D:\\loaiu\\MAM5\\Stage\\data\\UC1";
+        ArrayList<File> matchingFolders = new ArrayList<>();
+        findMatchingFolders(new File(rootDirectory), matchingFolders);
+
+        // Count crossings and store results per plant
+        Map<String, PlantData> plantResults = new HashMap<>();
+        for (File folder : matchingFolders) {
+            String plantName = folder.getName();
+            String rsmlPath = folder.getAbsolutePath() + "\\61_graph_expertized.rsml";
+            String tifPath = folder.getAbsolutePath() + "\\22_registered_stack.tif";
+            rm = RootModel.RootModelWildReadFromRsml(rsmlPath);
+            seqReg = IJ.openImage(tifPath);
+            PlantData plantData = new PlantData(plantName);
+            countCrossingsPerSlice(rm, seqReg, proximityThreshold, plantData);
+
+            if (!plantResults.containsKey(plantName)) {
+                plantResults.put(plantName, plantData);
+            }
+        }
+
+        // Create datasets for charts
+        DefaultCategoryDataset datasetCrossings = new DefaultCategoryDataset();
+        DefaultCategoryDataset datasetCumulativeCrossings = new DefaultCategoryDataset();
+
+        for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
+            String plantName = entry.getKey();
+            PlantData plantData = entry.getValue();
+            int[] crossingCounts = plantData.crossingCounts;
+            int N = crossingCounts.length;
+            int[] cumulativeCrossings = new int[N];
+            for (int i = 0; i < N; i++) {
+                datasetCrossings.addValue(crossingCounts[i], plantName, String.valueOf(i + 1));
+                if (i == 0) {
+                    cumulativeCrossings[i] = crossingCounts[i];
+                } else {
+                    cumulativeCrossings[i] = cumulativeCrossings[i - 1] + crossingCounts[i];
+                }
+                datasetCumulativeCrossings.addValue(cumulativeCrossings[i], plantName, String.valueOf(i + 1));
+            }
+        }
+
+        // Create and display bar charts
+        JFreeChart barChartCrossings = ChartFactory.createBarChart(
+                "Nombre de croisements par temps",
+                "Temps",
+                "Nombre de croisements",
+                datasetCrossings,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
+        JFreeChart barChartCumulativeCrossings = ChartFactory.createBarChart(
+                "Somme cumulée des croisements par temps",
+                "Temps",
+                "Somme cumulée des croisements",
+                datasetCumulativeCrossings,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
+        // Display charts in a frame
+        JFrame frame = new JFrame("Graphiques de croisements par plante");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setLayout(new GridLayout(2, 1));
+
+        ChartPanel chartPanelCrossings = new ChartPanel(barChartCrossings);
+        ChartPanel chartPanelCumulativeCrossings = new ChartPanel(barChartCumulativeCrossings);
+
+        frame.add(chartPanelCrossings);
+        frame.add(chartPanelCumulativeCrossings);
+
+        frame.pack();
+        frame.setVisible(true);
+
+        // Create and display averaged bar chart for crossings
+        DefaultCategoryDataset datasetAvgCrossings = createAveragedDataset(plantResults);
+
+        JFreeChart barChartAvgCrossings = ChartFactory.createBarChart(
+                "Moyenne du nombre de croisements par temps",
+                "Temps",
+                "Nombre moyen de croisements",
+                datasetAvgCrossings,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
+        JFrame frame2 = new JFrame("Graphique moyen des croisements par plante");
+        frame2.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame2.setLayout(new GridLayout(1, 1));
+
+        ChartPanel chartPanelAvgCrossings = new ChartPanel(barChartAvgCrossings);
+        frame2.add(chartPanelAvgCrossings);
+
+        frame2.pack();
+        frame2.setVisible(true);
+
+        plotDistanceFromRootBase(plantResults);
+        plotLengthFromRootBase(plantResults);
     }
 
+    /**
+     * Plots a histogram showing the distribution of distances between crossing points and the base of the roots.
+     *
+     * @param plantResults Map containing PlantData for each plant.
+     */
+    public static void plotDistanceFromRootBase(Map<String, PlantData> plantResults) {
+        List<Double> distances = new ArrayList<>();
 
+        for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
+            PlantData plantData = entry.getValue();
+
+            for (CrossingInfo crossing : plantData.crossingInfos) {
+                for (Root root : crossing.roots) {
+                    Node firstNode = root.firstNode; // Assuming the first node is the base
+                    double distance = Math.sqrt(
+                            Math.pow(crossing.position[0] - firstNode.x, 2) +
+                                    Math.pow(crossing.position[1] - firstNode.y, 2) +
+                                    Math.pow(crossing.position[2] - firstNode.birthTime, 2));
+                    distances.add(distance);
+                }
+            }
+        }
+
+        double[] distancesArray = distances.stream().mapToDouble(Double::doubleValue).toArray();
+
+        HistogramDataset dataset = new HistogramDataset();
+        dataset.addSeries("Distances", distancesArray, 20); // 20 bins
+
+        JFreeChart histogram = ChartFactory.createHistogram(
+                "Distribution des distances des croisements à la base des racines",
+                "Distance",
+                "Fréquence",
+                dataset,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
+        JFrame frame = new JFrame("Distribution des distances des croisements");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.add(new ChartPanel(histogram));
+        frame.pack();
+        frame.setVisible(true);
+    }
+
+    /**
+     * Plots a histogram showing the distribution of root lengths between crossing points and the base of the roots.
+     *
+     * @param plantResults Map containing PlantData for each plant.
+     */
+    public static void plotLengthFromRootBase(Map<String, PlantData> plantResults) {
+        List<Double> lengths = new ArrayList<>();
+
+        for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
+            PlantData plantData = entry.getValue();
+
+            for (CrossingInfo crossing : plantData.crossingInfos) {
+                for (Root root : crossing.roots) {
+                    Node firstNode = root.firstNode; // Assuming the first node is the base
+                    double length = 0;
+                    double lengthFromRoot = 0;
+                    firstNode.calcCLength();
+                    while (firstNode.child != null) {
+                        if (Math.sqrt(
+                                Math.pow(crossing.position[0] - firstNode.x, 2) +
+                                        Math.pow(crossing.position[1] - firstNode.y, 2)) >
+                                Math.sqrt(
+                                        Math.pow(crossing.position[0] - firstNode.child.x, 2) +
+                                                Math.pow(crossing.position[1] - firstNode.child.y, 2))) {
+                            length = lengthFromRoot + Math.sqrt(
+                                    Math.pow(firstNode.x - firstNode.child.x, 2) +
+                                            Math.pow(firstNode.y - firstNode.child.y, 2));
+                        }
+                        lengthFromRoot += Math.sqrt(
+                                Math.pow(firstNode.x - firstNode.child.x, 2) +
+                                        Math.pow(firstNode.y - firstNode.child.y, 2));
+                        firstNode = firstNode.child;
+                    }
+                    if (Math.sqrt(
+                            Math.pow(crossing.position[0] - firstNode.x, 2) +
+                                    Math.pow(crossing.position[1] - firstNode.y, 2)) < length) {
+                        length = lengthFromRoot + Math.sqrt(
+                                Math.pow(firstNode.parent.x - firstNode.x, 2) +
+                                        Math.pow(firstNode.parent.y - firstNode.y, 2));
+                    }
+                    lengths.add(length);
+                }
+            }
+        }
+
+        double[] lengthsArray = lengths.stream().mapToDouble(Double::doubleValue).toArray();
+
+        HistogramDataset dataset = new HistogramDataset();
+        dataset.addSeries("Lengths", lengthsArray, 20); // 20 bins
+
+        JFreeChart histogram = ChartFactory.createHistogram(
+                "Distribution des longueur racinaires entre les croisements et la base des racines",
+                "Longueur",
+                "Fréquence",
+                dataset,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
+        JFrame frame = new JFrame("Distribution des distances des croisements");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.add(new ChartPanel(histogram));
+        frame.pack();
+        frame.setVisible(true);
+    }
+
+    /**
+     * Creates a dataset that averages the number of crossings per time point across all plants.
+     *
+     * @param plantResults Map containing PlantData for each plant.
+     * @return DefaultCategoryDataset containing the averaged crossings per time point.
+     */
+    public static DefaultCategoryDataset createAveragedDataset(Map<String, PlantData> plantResults) {
+        Map<Integer, List<Integer>> crossingsByTime = new HashMap<>();
+        int maxTime = 0;
+
+        // Collect all crossing counts per time point
+        for (PlantData plantData : plantResults.values()) {
+            for (int i = 0; i < plantData.crossingCounts.length; i++) {
+                crossingsByTime.computeIfAbsent(i, k -> new ArrayList<>()).add(plantData.crossingCounts[i]);
+                if (i > maxTime) {
+                    maxTime = i;
+                }
+            }
+        }
+
+        // Calculate averages
+        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+        for (int i = 0; i <= maxTime; i++) {
+            List<Integer> counts = crossingsByTime.get(i);
+            if (counts != null) {
+                double average = counts.stream().mapToInt(Integer::intValue).average().orElse(0);
+                dataset.addValue(average, "Moyenne des croisements", String.valueOf(i + 1));
+            }
+        }
+
+        return dataset;
+    }
+
+    /**
+     * Draws a complex image by time from the root model and image sequence.
+     *
+     * @param rm                 Root model.
+     * @param imgSequence        Image sequence.
+     * @param proximityThreshold Proximity threshold for detecting crossings.
+     * @return ImagePlus containing the drawn complex image.
+     */
     public static ImagePlus drawComplexByTime(RootModel rm, ImagePlus imgSequence, double proximityThreshold) {
         int N = imgSequence.getStackSize();
+        PlantData plantData = new PlantData("plant");
+        plantData.crossingCounts = new int[N];
         ImagePlus[] slices = VitimageUtils.stackToSlices(imgSequence);
         for (int i = 1; i <= N; i++) {
             System.out.println("\n\n\n\n\n\nSTEP " + i);
             Object[] complex = rootModelComplexity(rm, proximityThreshold, i);
-            slices[i - 1] = drawComplex(slices[i - 1], (ArrayList<double[]>) complex[1], proximityThreshold);
-            slices[i - 1] = VitimageUtils.writeBlackTextOnGivenImage("N=" + (Double) complex[0], slices[i - 1], 20, 50, 50);
-            //if(i==8)VitimageUtils.waitFor(500000);
+            plantData.addCrossingInfos((List<CrossingInfo>) complex[1]);
+            plantData.crossingCounts[i - 1] = plantData.recentlyAddedCrossings + (i == 1 ? 0 : plantData.crossingCounts[i - 2]);
+
+            slices[i - 1] = drawComplex(slices[i - 1], (ArrayList<CrossingInfo>) complex[1], proximityThreshold);
+            slices[i - 1] = VitimageUtils.writeBlackTextOnGivenImage("N=" + complex[0], slices[i - 1], 20, 50, 50);
         }
         ImagePlus comp = VitimageUtils.slicesToStack(slices);
-        ImagePlus img = VitimageUtils.compositeNoAdjustOf(imgSequence, comp);
-        return img;
+        return VitimageUtils.compositeNoAdjustOf(imgSequence, comp);
     }
 
-    public static ImagePlus drawComplex(ImagePlus ref, ArrayList<double[]> pointsContact, double proximityThreshold) {
+    /**
+     * Draws the complex image with crossing points.
+     *
+     * @param ref                Reference image.
+     * @param pointsContact      List of crossing points.
+     * @param proximityThreshold Proximity threshold for detecting crossings.
+     * @return ImagePlus containing the drawn complex image.
+     */
+    public static ImagePlus drawComplex(ImagePlus ref, ArrayList<CrossingInfo> pointsContact, double proximityThreshold) {
         ImagePlus img = VitimageUtils.nullImage(ref);
         IJ.run(img, "32-bit", "");
         double radMin = 4;
         double radMax = 4;
         double valMin = 3;
         double valMax = 6;
-        float[] tabVal = (float[]) img.getStack().getPixels(1);
-        int incr = 0;
-        int N = pointsContact.size();
-        for (double[] contact : pointsContact) {
-            //if((incr++)%20 ==0)System.out.println("drawComplex "+incr+"/"+N);
-            double dist = contact[0];
-            double x = contact[1];
-            double y = contact[2];
+        for (double[] contact : pointsContact.stream().map(info -> info.position).toArray(double[][]::new)) {
+            double dist = contact[3];
+            double x = contact[0];
+            double y = contact[1];
             double percent = dist / proximityThreshold;
-            double rad = (radMax - percent * (radMax - radMin)) * VitimageUtils.getVoxelSizes(img)[0];
+            double rad = (radMax - percent * (radMax - radMin)) * VitimageUtils.getVoxelSizes(img)[0]; // The closer, the bigger, the more colored
             double color = valMax - percent * (valMax - valMin);
             VitimageUtils.drawCircleIntoImageFloat(img, rad, (int) x, (int) y, 0, color);
         }
@@ -66,11 +334,58 @@ public class SegmentToSegment {
         return img;
     }
 
+    /**
+     * Finds folders that contain both "22_registered_stack.tif" and "61_graph_expertized.rsml" files.
+     *
+     * @param dir             Root directory to start searching.
+     * @param matchingFolders List to store the matching folders.
+     */
+    public static void findMatchingFolders(File dir, ArrayList<File> matchingFolders) {
+        if (dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            boolean hasTif = false, hasRsml = false;
+            if (files != null) {
+                for (File file : files) {
+                    if (file.getName().equals("22_registered_stack.tif")) hasTif = true;
+                    if (file.getName().equals("61_graph_expertized.rsml")) hasRsml = true;
+                }
+                if (hasTif && hasRsml) matchingFolders.add(dir);
+                for (File file : files) {
+                    if (file.isDirectory()) findMatchingFolders(file, matchingFolders);
+                }
+            }
+        }
+    }
 
+    /**
+     * Counts the crossings per slice in the image sequence and updates the plant data.
+     *
+     * @param rm                 Root model.
+     * @param imgSequence        Image sequence.
+     * @param proximityThreshold Proximity threshold for detecting crossings.
+     * @param plantData          Plant data to be updated.
+     */
+    public static void countCrossingsPerSlice(RootModel rm, ImagePlus imgSequence, double proximityThreshold, PlantData plantData) {
+        int N = imgSequence.getStackSize();
+        plantData.crossingCounts = new int[N];
+        for (int i = 1; i <= N; i++) {
+            Object[] complex = rootModelComplexity(rm, proximityThreshold, i);
+            plantData.addCrossingInfos((List<CrossingInfo>) complex[1]);
+            plantData.crossingCounts[i - 1] = plantData.recentlyAddedCrossings + (i == 1 ? 0 : plantData.crossingCounts[i - 2]);
+        }
+    }
+
+    /**
+     * Computes the complexity of the root model by finding crossings within a given threshold up to a specified day.
+     *
+     * @param rm                 Root model.
+     * @param proximityThreshold Proximity threshold for detecting crossings.
+     * @param dayMax             Maximum day to consider for crossings.
+     * @return Object array containing total ambiguities and list of crossing information.
+     */
     public static Object[] rootModelComplexity(RootModel rm, double proximityThreshold, int dayMax) {
-        ArrayList<double[]> pointsContact = new ArrayList<double[]>();
+        List<CrossingInfo> crossingInfos = new ArrayList<>();
         int totalAmbiguities = 0;
-        double dMin = proximityThreshold;
         int nRoot = rm.rootList.size();
         ArrayList<Root> arrRoot = rm.rootList;
         Root[] tabRoot = new Root[arrRoot.size()];
@@ -87,86 +402,104 @@ public class SegmentToSegment {
             yMax[i] = tabRoot[i].getYMax();
         }
 
-        ArrayList<Root> tabR1 = new ArrayList<Root>();
-        ArrayList<Root> tabR2 = new ArrayList<Root>();
-        int[] count = new int[]{0, 0};
-        for (int i1 = 0; i1 < nRoot; i1++) {//100
-            for (int i2 = i1 + 1; i2 < nRoot; i2++) {//100
+        for (int i1 = 0; i1 < nRoot; i1++) {
+            for (int i2 = i1 + 1; i2 < nRoot; i2++) {
                 boolean touch = false;
-                count[0]++;
-                if (!couldIntersect(xMin[i1], xMin[i2], xMax[i1], xMax[i2], dMin)) continue;
-                if (!couldIntersect(yMin[i1], yMin[i2], yMax[i1], yMax[i2], dMin)) continue;
-                count[1]++;
+                if (couldIntersect(xMin[i1], xMin[i2], xMax[i1], xMax[i2], proximityThreshold)) continue;
+                if (couldIntersect(yMin[i1], yMin[i2], yMax[i1], yMax[i2], proximityThreshold)) continue;
                 Root r1 = tabRoot[i1];
                 Root r2 = tabRoot[i2];
-                Node[] tabN1 = (Node[]) r1.getNodesList().toArray(new Node[r1.getNodesList().size()]);
-                Node[] tabN2 = (Node[]) r2.getNodesList().toArray(new Node[r2.getNodesList().size()]);
+                Root r1Primary = (r1.order == 1 ? r1 : r1.getParent());
+                Root r2Primary = (r2.order == 1 ? r2 : r2.getParent());
+                Node[] tabN1 = r1.getNodesList().toArray(new Node[0]);
+                Node[] tabN2 = r2.getNodesList().toArray(new Node[0]);
                 int N1 = tabN1.length;
                 int N2 = tabN2.length;
                 boolean[] proxN1 = new boolean[N1 - 1];
                 boolean[] proxN2 = new boolean[N2 - 1];
-                //System.out.println("Starting i1="+i1+" i2="+i2+" amb="+totalAmbiguities);
+
                 for (int n1 = 1; n1 < N1; n1++) {
-                    if (tabN1[n1].distance < 2 * dMin) continue;
+                    if (tabN1[n1].distance < 2 * proximityThreshold) continue;
                     if (tabN1[n1].birthTime > dayMax) continue;
                     for (int n2 = 1; n2 < N2; n2++) {
-
-                        if (tabN2[n2].distance < 2 * dMin) continue;
+                        if (tabN2[n2].distance < 2 * proximityThreshold) continue;
                         if (tabN2[n2].birthTime > dayMax) continue;
-                        double[] Astart = new double[]{tabN1[n1 - 1].x, tabN1[n1 - 1].y, 0};
-                        double[] Astop = new double[]{tabN1[n1].x, tabN1[n1].y, 0};
-                        double[] Bstart = new double[]{tabN2[n2 - 1].x, tabN2[n2 - 1].y, 0};
-                        double[] Bstop = new double[]{tabN2[n2].x, tabN2[n2].y, 0};
-                        double[] dist = distanceBetweenTwoSegments3D(Astart, Astop, Bstart, Bstop);
-                        if (dist[0] <= proximityThreshold) {
-                            pointsContact.add(dist);
+                        double[] Astart = {tabN1[n1 - 1].x, tabN1[n1 - 1].y, 0};
+                        double[] Astop = {tabN1[n1].x, tabN1[n1].y, 0};
+                        double[] Bstart = {tabN2[n2 - 1].x, tabN2[n2 - 1].y, 0};
+                        double[] Bstop = {tabN2[n2].x, tabN2[n2].y, 0};
+
+                        if (doSegmentsIntersect(Astart, Astop, Bstart, Bstop)) {
+                            List<Root> roots = new ArrayList<>();
+                            roots.add(r1);
+                            roots.add(r2);
+                            crossingInfos.add(new CrossingInfo(new double[]{(Astart[0] + Astop[0] + Bstart[0] + Bstop[0]) / 4, (Astart[1] + Astop[1] + Bstart[1] + Bstop[1]) / 4, tabN1[n1].birthTime, 0}, roots, r1Primary, r2Primary, Arrays.asList(tabN1[n1 - 1], tabN1[n1]), Arrays.asList(tabN2[n2 - 1], tabN2[n2]), dayMax));
                             touch = true;
                             proxN1[n1 - 1] = true;
                             proxN2[n2 - 1] = true;
-                            System.out.println("Caught proximity \n - Root 1 " + r1 + " \n - Root 2 " + r2 + "\n    A : " + TransformUtils.stringVector(Astart, "Astart") + " , " + TransformUtils.stringVector(Astop, "Astop") +
-                                    "\n    B : " + TransformUtils.stringVector(Bstart, "Bstart") + " , " + TransformUtils.stringVector(Bstop, "Bstop") + " .\n");
+                        } else {
+                            double[] dist = distanceBetweenTwoSegments3D(Astart, Astop, Bstart, Bstop);
+                            if (dist[0] <= proximityThreshold) {
+                                List<Root> roots = new ArrayList<>();
+                                roots.add(r1);
+                                roots.add(r2);
+                                crossingInfos.add(new CrossingInfo(new double[]{dist[1], dist[2], tabN1[n1].birthTime, dist[0]}, roots, r1Primary, r2Primary, Arrays.asList(tabN1[n1 - 1], tabN1[n1]), Arrays.asList(tabN2[n2 - 1], tabN2[n2]), dayMax));
+                                touch = true;
+                                proxN1[n1 - 1] = true;
+                                proxN2[n2 - 1] = true;
+                            }
                         }
                     }
                 }
 
-                //Extract connexe components (i.e. sequence a1-a2  , b-1-b2  where proxN1[a1-a2]
-                if (!touch) continue;
-                //Traversal from start
-                int nit = 0;
-                int amb1 = 0;
-                int amb2 = 0;
-                while (nit < (N1 - 1)) {
-                    while ((nit < (N1 - 1)) && proxN1[nit])
-                        nit++;//Get the first node not to be in proximity (mixing at start is not a point)
-                    while ((nit < (N1 - 1)) && !proxN1[nit]) nit++;//Get the first node to be in proximity
-                    if (nit < (N1 - 1)) amb1++;
+                if (touch) {
+                    totalAmbiguities++;
                 }
-                nit = 0;
-                while (nit < (N1 - 1)) {
-                    while ((nit < (N1 - 1)) && proxN1[nit])
-                        nit++;//Get the first node not to be in proximity (mixing at start is not a point)
-                    while ((nit < (N1 - 1)) && !proxN1[nit]) nit++;//Get the first node to be in proximity
-                    if (nit < (N1 - 1)) amb2++;
-                }
-                //System.out.println("Amb1="+amb1);
-                //System.out.println("Amb2="+amb2);
-                totalAmbiguities += (touch ? 1 : 0);//Math.max(amb1, amb2);
-                System.out.println("\n---------NEXT---------\n");
             }
         }
-        System.out.println("Total ambiguities=" + totalAmbiguities);
-        return new Object[]{new Double(totalAmbiguities), pointsContact};
+        return new Object[]{(double) totalAmbiguities, crossingInfos};
     }
 
+    /**
+     * Determines if two segments intersect.
+     *
+     * @param Astart Start point of segment A.
+     * @param Astop  End point of segment A.
+     * @param Bstart Start point of segment B.
+     * @param Bstop  End point of segment B.
+     * @return True if the segments intersect, false otherwise.
+     */
+    public static boolean doSegmentsIntersect(double[] Astart, double[] Astop, double[] Bstart, double[] Bstop) {
+        double[] A = Astart;
+        double[] B = Astop;
+        double[] C = Bstart;
+        double[] D = Bstop;
 
-    public static double[] distanceBetweenTwoSegments2D(double[] Astart, double[] Astop, double[] Bstart, double[] Bstop) {
-        double[] newAstart = new double[]{Astart[0], Astart[1], 0};
-        double[] newAstop = new double[]{Astop[0], Astop[1], 0};
-        double[] newBstart = new double[]{Bstart[0], Bstart[1], 0};
-        double[] newBstop = new double[]{Bstop[0], Bstop[1], 0};
-        return distanceBetweenTwoSegments3D(newAstart, newAstop, newBstart, newBstop);
+        double[] AB = {B[0] - A[0], B[1] - A[1]};
+        double[] CD = {D[0] - C[0], D[1] - C[1]};
+
+        double cross = AB[0] * CD[1] - AB[1] * CD[0];
+
+        if (cross == 0) {
+            return false;
+        }
+
+        double[] AC = {C[0] - A[0], C[1] - A[1]};
+        double t1 = (AC[0] * CD[1] - AC[1] * CD[0]) / cross;
+        double u = (AC[0] * AB[1] - AC[1] * AB[0]) / cross;
+
+        return t1 >= 0 && t1 <= 1 && u >= 0 && u <= 1;
     }
 
+    /**
+     * Computes the distance between two 3D segments.
+     *
+     * @param Astart Start point of segment A.
+     * @param Astop  End point of segment A.
+     * @param Bstart Start point of segment B.
+     * @param Bstop  End point of segment B.
+     * @return Array containing the distance and mid-point coordinates between the segments.
+     */
     public static double[] distanceBetweenTwoSegments3D(double[] Astart, double[] Astop, double[] Bstart, double[] Bstop) {
         double[] P1P0 = TransformUtils.vectorialSubstraction(Astop, Astart);
         double[] Q1Q0 = TransformUtils.vectorialSubstraction(Bstop, Bstart);
@@ -178,85 +511,137 @@ public class SegmentToSegment {
         double e = TransformUtils.scalarProduct(Q1Q0, P0Q0);
         double s = 0;
         double t = 0;
-        double det = 0;
-        double bte = 0;
-        double ctd = 0;
-        double ate = 0;
-        double btd = 0;
-        double epsilon = 0.00000001;
-        double zero = epsilon;
-        //	Compute a, b, c, d, e with dot products;
-        det = a * c - b * b;
-        if (det > 0) /* nonparallel segments*/ {
-            bte = b * e;
-            ctd = c * d;
-            if (bte <= ctd) /* s <= 0 */ {
-                if (e <= zero)  /*  t <= 0 (region 6) */ {
-                    s = (-d >= a ? 1 : (-d > 0 ? -d / a : 0));
-                    t = 0;
-                } else if (e < c) /*  0 < t < 1 (region 5) */ {
-                    s = 0;
-                    t = e / c;
-                } else /*  t >= 1 (region 4) */ {
-                    s = ((b - d) >= a ? 1 : ((b - d) > 0 ? (b - d) / a : 0));
-                    t = 1;
-                }
-            } else /*  s > 0*/ {
-                s = bte - ctd;
-                if (s >= det) /*  s >= 1 */ {
-                    if (b + e <= 0) /*  t <= 0 (region 8) */ {
-                        s = (-d <= 0 ? 0 : (-d < a ? -d / a : 1));
-                        t = 0;
-                    } else if (b + e < c) /*  < t < 1 (region 1) */ {
-                        s = 1;
-                        t = (b + e) / c;
-                    } else /*  t >= 1 (region 2) */ {
-                        s = ((b - d) <= 0 ? 0 : ((b - d) < a ? (b - d) / a : 1));
-                        t = 1;
-                    }
-                } else /*  0 < s < 1 */ {
-                    ate = a * e;
-                    btd = b * d;
-                    if (ate <= btd) /*  t <= 0 (region 7) */ {
-                        s = (-d <= 0 ? 0 : (-d >= a ? 1 : -d / a));
-                        t = 0;
-                    } else /*  t > 0 */ {
-                        t = ate - btd;
-                        if (t >= det) /*  t >= 1 (region 3) */ {
-                            s = ((b - d) <= 0 ? 0 : ((b - d) >= a ? 1 : (b - d) / a));
-                            t = 1;
-                        } else /* 0 < t < 1 (region 0) */ {
-                            s /= det;
-                            t /= det;
-                        }
-                    }
-                }
-            }
-        } else /* parallel segments */ {
-            if (e <= 0) {
-                s = (-d <= 0 ? 0 : (-d >= a ? 1 : -d / a));
-                t = 0;
-            } else if (e >= c) {
-                s = ((b - d) <= 0 ? 0 : ((b - d) >= a ? 1 : (b - d) / a));
-                t = 1;
-            } else {
-                s = 0;
-                t = e / c;
-            }
+        double det = a * c - b * b;
+        if (det > 0) {
+            s = (b * e - c * d) / det;
+            t = (a * e - b * d) / det;
+        } else {
+            s = 0;
+            t = e / c;
         }
-        double[] ptA = TransformUtils.vectorialAddition(TransformUtils.multiplyVector(Astart, (1 - s)), TransformUtils.multiplyVector(Astop, (s)));
-        double[] ptB = TransformUtils.vectorialAddition(TransformUtils.multiplyVector(Bstart, (1 - t)), TransformUtils.multiplyVector(Bstop, (t)));
-//		System.out.println(TransformUtils.stringVector(ptA, "ptA"));
-//		System.out.println(TransformUtils.stringVector(ptB, "ptB"));
+        s = Math.max(0, Math.min(1, s));
+        t = Math.max(0, Math.min(1, t));
+        double[] ptA = TransformUtils.vectorialAddition(TransformUtils.multiplyVector(Astart, (1 - s)), TransformUtils.multiplyVector(Astop, s));
+        double[] ptB = TransformUtils.vectorialAddition(TransformUtils.multiplyVector(Bstart, (1 - t)), TransformUtils.multiplyVector(Bstop, t));
         double distance = TransformUtils.norm(TransformUtils.vectorialSubstraction(ptA, ptB));
-//		System.out.println("Distance="+distance);
         return new double[]{distance, ptA[0] * 0.5 + ptB[0] * 0.5, ptA[1] * 0.5 + ptB[1] * 0.5, ptA[2] * 0.5 + ptB[2] * 0.5};
     }
 
+    /**
+     * Checks if two segments could intersect given their minimum and maximum values and a threshold.
+     *
+     * @param valMin1   Minimum value of the first segment.
+     * @param valMin2   Minimum value of the second segment.
+     * @param valMax1   Maximum value of the first segment.
+     * @param valMax2   Maximum value of the second segment.
+     * @param threshold Proximity threshold.
+     * @return True if the segments could intersect, false otherwise.
+     */
     public static boolean couldIntersect(double valMin1, double valMin2, double valMax1, double valMax2, double threshold) {
-        if ((valMin1 - threshold) > valMax2) return false;
-        if ((valMin2 - threshold) > valMax1) return false;
-        return true;
+        return (valMin1 - threshold) > valMax2 || (valMin2 - threshold) > valMax1;
     }
 
+    /**
+     * Filters crossing information by time.
+     *
+     * @param crossingInfos Set of crossing information.
+     * @param time          Time to filter by.
+     * @return List of crossing information that matches the specified time.
+     */
+    public static List<CrossingInfo> filterCrossingInfoByTime(HashSet<CrossingInfo> crossingInfos, int time) {
+        List<CrossingInfo> filtered = new ArrayList<>();
+        for (CrossingInfo info : crossingInfos) {
+            if (info.time == time) {
+                filtered.add(info);
+            }
+        }
+        return filtered;
+    }
+}
+
+/**
+ * PlantData class stores information about a plant's crossings and their counts.
+ */
+class PlantData {
+    String plantName;
+    int[] crossingCounts;
+    HashSet<CrossingInfo> crossingInfos;
+    int recentlyAddedCrossings = 0;
+
+    /**
+     * Constructor for PlantData.
+     *
+     * @param plantName Name of the plant.
+     */
+    public PlantData(String plantName) {
+        this.plantName = plantName;
+        this.crossingInfos = new HashSet<>();
+    }
+
+    /**
+     * Adds a single crossing information to the plant data.
+     *
+     * @param info Crossing information to be added.
+     */
+    public void addCrossingInfo(CrossingInfo info) {
+        this.crossingInfos.add(info);
+    }
+
+    /**
+     * Adds multiple crossing information to the plant data, avoiding repetitions.
+     *
+     * @param infos List of crossing information to be added.
+     */
+    public void addCrossingInfos(List<CrossingInfo> infos) {
+        recentlyAddedCrossings = 0;
+        for (CrossingInfo info : infos) {
+            boolean add = true;
+            for (CrossingInfo crossingInfo : this.crossingInfos) {
+                if (Math.sqrt(Math.pow(crossingInfo.position[0] - info.position[0], 2) + Math.pow(crossingInfo.position[1] - info.position[1], 2)) < 1) {
+                    add = false;
+                    break;
+                }
+            }
+            if (add) {
+                recentlyAddedCrossings++;
+                this.addCrossingInfo(info);
+            }
+        }
+    }
+}
+
+/**
+ * CrossingInfo class stores information about a crossing point, including position, involved roots, and time.
+ */
+class CrossingInfo {
+    double[] position;
+    List<Root> roots;
+    List<Node> nodeRoot1;
+    List<Node> nodeRoot2;
+    Root primaryRoot1;
+    Root primaryRoot2;
+    boolean samePrimaryRoot;
+    int time;
+
+    /**
+     * Constructor for CrossingInfo.
+     *
+     * @param position     Position of the crossing point.
+     * @param roots        List of roots involved in the crossing.
+     * @param primaryRoot1 Primary root for the first involved root.
+     * @param primaryRoot2 Primary root for the second involved root.
+     * @param nodeRoot1    List of nodes for the first involved root.
+     * @param nodeRoot2    List of nodes for the second involved root.
+     * @param time         Time of the crossing.
+     */
+    public CrossingInfo(double[] position, List<Root> roots, Root primaryRoot1, Root primaryRoot2, List<Node> nodeRoot1, List<Node> nodeRoot2, int time) {
+        this.position = position;
+        this.roots = roots;
+        this.primaryRoot1 = primaryRoot1;
+        this.primaryRoot2 = primaryRoot2;
+        this.nodeRoot1 = nodeRoot1;
+        this.nodeRoot2 = nodeRoot2;
+        this.samePrimaryRoot = primaryRoot1.equals(primaryRoot2);
+        this.time = time;
+    }
 }

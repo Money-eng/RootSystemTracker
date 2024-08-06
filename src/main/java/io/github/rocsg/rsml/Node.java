@@ -4,10 +4,8 @@
 package io.github.rocsg.rsml;
 
 import io.github.rocsg.fijiyama.common.VitimageUtils;
-import io.github.rocsg.rsmlparser.Function;
 
 import java.awt.geom.Point2D;
-import java.util.List;
 
 // TODO: Auto-generated Javadoc
 /**
@@ -168,6 +166,31 @@ public class Node {
         return (float) (dirY <= 0 ? Math.acos(dirX / norm)
                 : 2.0 * Math.PI - Math.acos(dirX / norm));
 
+    }
+
+    public static boolean equals(Node node1, Node node2) {
+        if (node1 == null && node2 == null) return true;
+        if (node1 == null || node2 == null) return false;
+        if (node1.x != node2.x) return false;
+        if (node1.y != node2.y) return false;
+        if (node1.theta != node2.theta) return false;
+        if (node1.length != node2.length) return false;
+        if (node1.cLength != node2.cLength) return false;
+        if (node1.diameter != node2.diameter) return false;
+        if (node1.birthTime != node2.birthTime) return false;
+        if (node1.birthTimeHours != node2.birthTimeHours) return false;
+        if (node1.vx != node2.vx) return false;
+        if (node1.vy != node2.vy) return false;
+        if (node1.child != node2.child) return false;
+        if (node1.parent != node2.parent) return false;
+        if (node1.distance != node2.distance) return false;
+        if (node1.hiddenWayToChild != node2.hiddenWayToChild) return false;
+        if (node1.needsRefresh != node2.needsRefresh) return false;
+        if (node1.isInsertionPoint != node2.isInsertionPoint) return false;
+        if (node1.bCross01 != node2.bCross01) return false;
+        if (node1.bCross23 != node2.bCross23) return false;
+        if (node1.pCross01 != node2.pCross01) return false;
+        return node1.pCross23 == node2.pCross23;
     }
 
     @Override

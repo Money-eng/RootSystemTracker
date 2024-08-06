@@ -2397,7 +2397,7 @@ public class Root implements Comparable<Root>, IRootParser {
         return Float.compare(this.firstNode.x, arg0.firstNode.x);
     } // TODO
 
-    @Override
+    /*@Override
     public boolean equals(Object obj) {
         if (obj instanceof Root) {
             Root r = (Root) obj;
@@ -2437,8 +2437,49 @@ public class Root implements Comparable<Root>, IRootParser {
             }
         }
         return false;
+    }*/
+    @Override
+    // simpler version
+    public boolean equals(Object obj) {
+        if (obj instanceof Root) {
+            Root r = (Root) obj;
+            boolean idTest = this.getRootID().equals(r.getRootID());
+            boolean parentTest = (this.parent == null && r.parent == null) || (this.parent != null && r.parent != null && this.parent.equals(r.parent));
+            boolean numNodeTest = (this.nNodes == r.nNodes);
+            boolean firstChildTest = Node.equals(this.firstNode, r.firstNode);
+            boolean lastChildTest = Node.equals(this.lastNode, r.lastNode);
+            boolean firstNodeTest = this.firstNode.equals(r.firstNode);
+            boolean lastNodeTest = this.lastNode.equals(r.lastNode);
+            boolean distanceFromApexTest = this.distanceFromApex == r.distanceFromApex;
+            boolean distanceFromBaseTest = this.distanceFromBase == r.distanceFromBase;
+            boolean insertAnglTest = this.insertAngl == r.insertAngl;
+            boolean interBranchTest = this.interBranch == r.interBranch;
+            boolean childDensityTest = this.childDensity == r.childDensity;
+            boolean isChildTest = this.isChild == r.isChild;
+            boolean parentTest2 = (this.parent == null && r.parent == null) || (this.parent != null && r.parent != null && this.parent.equals(r.parent));
+            boolean parentNameTest = (this.parentName == null && r.parentName == null) || (this.parentName != null && r.parentName != null && this.parentName.equals(r.parentName));
+            boolean parentKeyTest = (this.parentKey == null && r.parentKey == null) || (this.parentKey != null && r.parentKey != null && this.parentKey.equals(r.parentKey));
+            boolean rootKeyTest = this.rootKey.equals(r.rootKey);
+            boolean poIndexTest = this.poIndex == r.poIndex;
+            boolean labelTest = (this.label == null && r.label == null) || (this.label != null && r.label != null && this.label.equals(r.label));
+            boolean orderTest = this.order == r.order;
+            boolean propertiesTest = (this.properties == null && r.properties == null) || (this.properties != null && r.properties != null && this.properties.equals(r.properties));
+            boolean functionsTest = (this.functions == null && r.functions == null) || (this.functions != null && r.functions != null && this.functions.equals(r.functions));
+            if (idTest && parentTest && numNodeTest && firstChildTest && lastChildTest && firstNodeTest && lastNodeTest && distanceFromApexTest && distanceFromBaseTest && insertAnglTest && interBranchTest && childDensityTest && isChildTest && parentTest2 && parentNameTest && parentKeyTest && rootKeyTest && poIndexTest && labelTest && orderTest && propertiesTest && functionsTest) {
+                Node firstNode = this.firstNode;
+                Node firstNode2 = r.firstNode;
+                while (firstNode != null) {
+                    if (!firstNode.equals(firstNode2)) {
+                        return false;
+                    }
+                    firstNode = firstNode.child;
+                    firstNode2 = firstNode2.child;
+                }
+                return true;
+            }
+        }
+        return false;
     }
-
     //// Implementation for IRootParser
 
     @Override
