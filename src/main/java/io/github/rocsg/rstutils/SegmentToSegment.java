@@ -1,5 +1,6 @@
 package io.github.rocsg.rstutils;
 
+import com.opencsv.CSVWriter;
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
@@ -10,6 +11,7 @@ import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
+import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.category.DefaultCategoryDataset;
@@ -18,6 +20,10 @@ import org.jfree.data.statistics.HistogramDataset;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.*;
 
@@ -31,7 +37,7 @@ public class SegmentToSegment {
      *
      * @param args Command line arguments (not used).
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         ImageJ ij = new ImageJ();
         String mainDataDir = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\";
         double proximityThreshold = 1.0; // Proximity threshold for detecting crossings
@@ -136,6 +142,51 @@ public class SegmentToSegment {
 
         plotDistanceFromRootBase(plantResults);
         plotLengthFromRootBase(plantResults);
+
+        // save
+        saveToCSV(plantResults, "plant_data.csv");
+        saveChartAsPNG(barChartCrossings, "bar_chart_crossings.png", 1920, 1080);
+        saveChartAsPNG(barChartCumulativeCrossings, "bar_chart_cumulative_crossings.png", 1920, 1080);
+        saveChartAsPNG(barChartAvgCrossings, "bar_chart_avg_crossings.png", 1920, 1080);
+    }
+
+    /**
+     * Save a chart as a PNG file.
+     *
+     * @param chart    The JFreeChart object to save.
+     * @param filePath The path to the file.
+     * @param width    Width of the chart image.
+     * @param height   Height of the chart image.
+     * @throws IOException If an I/O error occurs.
+     */
+    public static void saveChartAsPNG(JFreeChart chart, String filePath, int width, int height) throws IOException {
+        ChartUtils.saveChartAsPNG(new File(filePath), chart, width, height);
+    }
+
+    /**
+     * Save plant results to a CSV file.
+     *
+     * @param plantResults Map containing PlantData for each plant.
+     * @param filePath     Path to the CSV file.
+     * @throws IOException If an I/O error occurs.
+     */
+    public static void saveToCSV(Map<String, PlantData> plantResults, String filePath) throws IOException {
+        try (Writer writer = Files.newBufferedWriter(Paths.get(filePath));
+             CSVWriter csvWriter = new CSVWriter(writer)) {
+
+            String[] header = {"Plant Name", "Time Point", "Crossings", "x", "y", "t"};
+            csvWriter.writeNext(header);
+
+            for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
+                String plantName = entry.getKey();
+                PlantData plantData = entry.getValue();
+
+                for (CrossingInfo crossing : plantData.crossingInfos) {
+                    String[] data = {plantName, String.valueOf(crossing.time), String.valueOf(plantData.recentlyAddedCrossings), String.valueOf(crossing.position[0]), String.valueOf(crossing.position[1]), String.valueOf(crossing.position[2])};
+                    csvWriter.writeNext(data);
+                }
+            }
+        }
     }
 
     /**
@@ -143,7 +194,7 @@ public class SegmentToSegment {
      *
      * @param plantResults Map containing PlantData for each plant.
      */
-    public static void plotDistanceFromRootBase(Map<String, PlantData> plantResults) {
+    public static void plotDistanceFromRootBase(Map<String, PlantData> plantResults) throws IOException {
         List<Double> distances = new ArrayList<>();
 
         for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
@@ -179,6 +230,7 @@ public class SegmentToSegment {
         frame.add(new ChartPanel(histogram));
         frame.pack();
         frame.setVisible(true);
+        saveChartAsPNG(histogram, "histogram_distances.png", 1920, 1080);
     }
 
     /**
@@ -186,7 +238,7 @@ public class SegmentToSegment {
      *
      * @param plantResults Map containing PlantData for each plant.
      */
-    public static void plotLengthFromRootBase(Map<String, PlantData> plantResults) {
+    public static void plotLengthFromRootBase(Map<String, PlantData> plantResults) throws IOException {
         List<Double> lengths = new ArrayList<>();
 
         for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
@@ -244,6 +296,7 @@ public class SegmentToSegment {
         frame.add(new ChartPanel(histogram));
         frame.pack();
         frame.setVisible(true);
+        saveChartAsPNG(histogram, "histogram_lengths.png", 1920, 1080);
     }
 
     /**
