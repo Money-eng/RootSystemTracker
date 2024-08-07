@@ -40,18 +40,16 @@ public class SegmentToSegment {
     public static void main(String[] args) throws IOException {
         ImageJ ij = new ImageJ();
         String mainDataDir = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\";
-        double proximityThreshold = 1.0; // Proximity threshold for detecting crossings
+        double proximityThreshold = 1.0;
         RootModel rm = RootModel.RootModelWildReadFromRsml(mainDataDir + "61_graph_expertized.rsml");
         ImagePlus seqReg = IJ.openImage(mainDataDir + "22_registered_stack.tif");
         ImagePlus img = drawComplexByTime(rm, seqReg, proximityThreshold);
         img.show();
 
-        // Directory traversal to find matching folders
         String rootDirectory = "D:\\loaiu\\MAM5\\Stage\\data\\UC1";
         ArrayList<File> matchingFolders = new ArrayList<>();
         findMatchingFolders(new File(rootDirectory), matchingFolders);
 
-        // Count crossings and store results per plant
         Map<String, PlantData> plantResults = new HashMap<>();
         for (File folder : matchingFolders) {
             String plantName = folder.getName();
@@ -59,7 +57,7 @@ public class SegmentToSegment {
             String tifPath = folder.getAbsolutePath() + "\\22_registered_stack.tif";
             rm = RootModel.RootModelWildReadFromRsml(rsmlPath);
             seqReg = IJ.openImage(tifPath);
-            PlantData plantData = new PlantData(plantName);
+            PlantData plantData = new PlantData(plantName, rm.hoursCorrespondingToTimePoints);
             countCrossingsPerSlice(rm, seqReg, proximityThreshold, plantData);
 
             if (!plantResults.containsKey(plantName)) {
@@ -67,9 +65,17 @@ public class SegmentToSegment {
             }
         }
 
-        // Create datasets for charts
+        int numBins = 20; // Example number of bins
+        double maxTime = plantResults.values().stream()
+                .flatMapToDouble(pd -> Arrays.stream(pd.timeCorrespondingToTimePoints))
+                .max()
+                .orElse(1);
+        double binWidth = maxTime / numBins;
+
         DefaultCategoryDataset datasetCrossings = new DefaultCategoryDataset();
         DefaultCategoryDataset datasetCumulativeCrossings = new DefaultCategoryDataset();
+        DefaultCategoryDataset avgCrossingDataset = new DefaultCategoryDataset();
+        DefaultCategoryDataset avgCumulatedCrossingDataset = new DefaultCategoryDataset();
 
         for (Map.Entry<String, PlantData> entry : plantResults.entrySet()) {
             String plantName = entry.getKey();
@@ -77,21 +83,42 @@ public class SegmentToSegment {
             int[] crossingCounts = plantData.crossingCounts;
             int N = crossingCounts.length;
             int[] cumulativeCrossings = new int[N];
-            for (int i = 0; i < N; i++) {
-                // get time in hours for corresponding time
-                int timeInHours = (int) rm.hoursCorrespondingToTimePoints[i + 1];
 
-                datasetCrossings.addValue(crossingCounts[i], plantName, (Comparable) timeInHours);
+            List<Integer> timePoints = new ArrayList<>();
+            for (int i = 0; i < N; i++) {
+                timePoints.add((int) plantData.timeCorrespondingToTimePoints[i + 1]);
+            }
+            Collections.sort(timePoints);
+
+            for (int i = 0; i < N; i++) {
+                int timeInHours = (int) ((int) Math.round(timePoints.get(i) / binWidth) * binWidth);
+                int crossingCount = crossingCounts[i];
+                datasetCrossings.addValue(crossingCount, plantName, (Comparable) timeInHours);
                 if (i == 0) {
-                    cumulativeCrossings[i] = crossingCounts[i];
+                    cumulativeCrossings[i] = crossingCount;
                 } else {
-                    cumulativeCrossings[i] = cumulativeCrossings[i - 1] + crossingCounts[i];
+                    cumulativeCrossings[i] = cumulativeCrossings[i - 1] + crossingCount;
                 }
                 datasetCumulativeCrossings.addValue(cumulativeCrossings[i], plantName, (Comparable) timeInHours);
             }
         }
 
-        // Create and display bar charts
+        // average for every timeInHours
+        double sum = 0;
+        avgCumulatedCrossingDataset.addValue(sum, "Average", (Comparable) 0);
+        for (int i = 0; i < numBins + 1; i++) {
+            int timeInHours = (int) Math.round(i * binWidth);
+            int finalI = i;
+            double avgCrossings = plantResults.values().stream()
+                    .map(pd -> pd.crossingCounts[finalI])
+                    .mapToDouble(Integer::doubleValue)
+                    .average()
+                    .orElse(0);
+            sum += avgCrossings;
+            avgCrossingDataset.addValue(avgCrossings, "Average", (Comparable) timeInHours);
+            avgCumulatedCrossingDataset.addValue(sum, "Average", (Comparable) timeInHours);
+        }
+
         JFreeChart barChartCrossings = ChartFactory.createBarChart(
                 "Nombre de croisements par temps",
                 "Temps en heures",
@@ -108,49 +135,47 @@ public class SegmentToSegment {
                 PlotOrientation.VERTICAL,
                 true, true, false);
 
-        // Display charts in a frame
+        JFreeChart barChartAvgCrossings = ChartFactory.createBarChart(
+                "Nombre moyen de croisements par temps",
+                "Temps en heures",
+                "Nombre moyen de croisements",
+                avgCrossingDataset,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
+        JFreeChart barChartAvgCumulatedCrossings = ChartFactory.createBarChart(
+                "Somme cumulée moyenne des croisements par temps",
+                "Temps en heures",
+                "Somme cumulée moyenne des croisements",
+                avgCumulatedCrossingDataset,
+                PlotOrientation.VERTICAL,
+                true, true, false);
+
         JFrame frame = new JFrame("Graphiques de croisements par plante");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new GridLayout(2, 1));
 
         ChartPanel chartPanelCrossings = new ChartPanel(barChartCrossings);
         ChartPanel chartPanelCumulativeCrossings = new ChartPanel(barChartCumulativeCrossings);
+        ChartPanel chartPanelAvgCrossings = new ChartPanel(barChartAvgCrossings);
+        ChartPanel chartPanelAvgCumulatedCrossings = new ChartPanel(barChartAvgCumulatedCrossings);
 
         frame.add(chartPanelCrossings);
         frame.add(chartPanelCumulativeCrossings);
+        frame.add(chartPanelAvgCrossings);
+        frame.add(chartPanelAvgCumulatedCrossings);
 
         frame.pack();
         frame.setVisible(true);
 
-        // Create and display averaged bar chart for crossings
-        DefaultCategoryDataset datasetAvgCrossings = createAveragedDataset(plantResults);
-
-        JFreeChart barChartAvgCrossings = ChartFactory.createBarChart(
-                "Moyenne du nombre de croisements par temps",
-                "Temps en heures",
-                "Nombre moyen de croisements",
-                datasetAvgCrossings,
-                PlotOrientation.VERTICAL,
-                true, true, false);
-
-        JFrame frame2 = new JFrame("Graphique moyen des croisements par plante");
-        frame2.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame2.setLayout(new GridLayout(1, 1));
-
-        ChartPanel chartPanelAvgCrossings = new ChartPanel(barChartAvgCrossings);
-        frame2.add(chartPanelAvgCrossings);
-
-        frame2.pack();
-        frame2.setVisible(true);
-
         plotDistanceFromRootBase(plantResults);
         plotLengthFromRootBase(plantResults);
 
-        // save
         saveToCSV(plantResults, "plant_data.csv");
         saveChartAsPNG(barChartCrossings, "bar_chart_crossings.png", 1920, 1080);
         saveChartAsPNG(barChartCumulativeCrossings, "bar_chart_cumulative_crossings.png", 1920, 1080);
         saveChartAsPNG(barChartAvgCrossings, "bar_chart_avg_crossings.png", 1920, 1080);
+        saveChartAsPNG(barChartAvgCumulatedCrossings, "bar_chart_avg_cumulated_crossings.png", 1920, 1080);
     }
 
     /**
@@ -303,44 +328,6 @@ public class SegmentToSegment {
     }
 
     /**
-     * Creates a dataset that averages the number of crossings per time point across all plants.
-     *
-     * @param plantResults Map containing PlantData for each plant.
-     * @return DefaultCategoryDataset containing the averaged crossings per time point.
-     */
-    public static DefaultCategoryDataset createAveragedDataset(Map<String, PlantData> plantResults) {
-        Map<Float, List<Integer>> crossingsByTime = new HashMap<>();
-        int maxTime = 0;
-
-        // Collect all crossing counts per time point
-        for (PlantData plantData : plantResults.values()) {
-            List<CrossingInfo> crossingInfos = new ArrayList<>(plantData.crossingInfos);
-            for (int i = 0; i < plantData.crossingCounts.length; i++) {
-                int time = i + 1;
-                float timeInHours = crossingInfos.stream().filter(info -> info.time == time).findFirst().map(info -> info.timeInHours).orElse(0f);
-                crossingsByTime.computeIfAbsent(timeInHours, k -> new ArrayList<>()).add(plantData.crossingCounts[i]);
-                if (i > maxTime) {
-                    maxTime = i;
-                }
-            }
-        }
-
-        // Calculate averages
-        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-        // order by time
-        crossingsByTime = new TreeMap<>(crossingsByTime);
-        for (float i: crossingsByTime.keySet()) {
-            List<Integer> counts = crossingsByTime.get(i);
-            if (counts != null) {
-                double average = counts.stream().mapToInt(Integer::intValue).average().orElse(0);
-                dataset.addValue(average, "Moyenne des croisements",Integer.toString((int) i));
-            }
-        }
-
-        return dataset;
-    }
-
-    /**
      * Draws a complex image by time from the root model and image sequence.
      *
      * @param rm                 Root model.
@@ -350,12 +337,12 @@ public class SegmentToSegment {
      */
     public static ImagePlus drawComplexByTime(RootModel rm, ImagePlus imgSequence, double proximityThreshold) {
         int N = imgSequence.getStackSize();
-        PlantData plantData = new PlantData("plant");
+        PlantData plantData = new PlantData("plant", rm.hoursCorrespondingToTimePoints);
         plantData.crossingCounts = new int[N];
         ImagePlus[] slices = VitimageUtils.stackToSlices(imgSequence);
         for (int i = 1; i <= N; i++) {
             System.out.println("\n\n\n\n\n\nSTEP " + i);
-            Object[] complex = rootModelComplexity(rm, proximityThreshold, i, (float) rm.hoursCorrespondingToTimePoints[i]);
+            Object[] complex = rootModelComplexity(rm, proximityThreshold, i);
             plantData.addCrossingInfos((List<CrossingInfo>) complex[1]);
             plantData.crossingCounts[i - 1] = plantData.recentlyAddedCrossings + (i == 1 ? 0 : plantData.crossingCounts[i - 2]);
 
@@ -430,7 +417,7 @@ public class SegmentToSegment {
         int N = imgSequence.getStackSize();
         plantData.crossingCounts = new int[N];
         for (int i = 1; i <= N; i++) {
-            Object[] complex = rootModelComplexity(rm, proximityThreshold, i, (float) rm.hoursCorrespondingToTimePoints[i]);
+            Object[] complex = rootModelComplexity(rm, proximityThreshold, i);
             plantData.addCrossingInfos((List<CrossingInfo>) complex[1]);
             plantData.crossingCounts[i - 1] = plantData.recentlyAddedCrossings + (i == 1 ? 0 : plantData.crossingCounts[i - 2]);
         }
@@ -441,10 +428,10 @@ public class SegmentToSegment {
      *
      * @param rm                 Root model.
      * @param proximityThreshold Proximity threshold for detecting crossings.
-     * @param dayMax             Maximum day to consider for crossings.
+     * @param dayMax             Maximum day to consider for crossings. Meaning that crossings with nodes born after this day are not considered.
      * @return Object array containing total ambiguities and list of crossing information.
      */
-    public static Object[] rootModelComplexity(RootModel rm, double proximityThreshold, int dayMax, float timeInHours) {
+    public static Object[] rootModelComplexity(RootModel rm, double proximityThreshold, int dayMax) {
         List<CrossingInfo> crossingInfos = new ArrayList<>();
         int totalAmbiguities = 0;
         int nRoot = rm.rootList.size();
@@ -494,7 +481,8 @@ public class SegmentToSegment {
                             List<Root> roots = new ArrayList<>();
                             roots.add(r1);
                             roots.add(r2);
-                            crossingInfos.add(new CrossingInfo(new double[]{(Astart[0] + Astop[0] + Bstart[0] + Bstop[0]) / 4, (Astart[1] + Astop[1] + Bstart[1] + Bstop[1]) / 4, tabN1[n1].birthTime, 0}, roots, r1Primary, r2Primary, Arrays.asList(tabN1[n1 - 1], tabN1[n1]), Arrays.asList(tabN2[n2 - 1], tabN2[n2]), dayMax, timeInHours));
+                            // rm.hoursCorrespondingToTimePoints[2] corresponds to the time between slices 0 and 1
+                            crossingInfos.add(new CrossingInfo(new double[]{(Astart[0] + Astop[0] + Bstart[0] + Bstop[0]) / 4, (Astart[1] + Astop[1] + Bstart[1] + Bstop[1]) / 4, (tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0, 0}, roots, r1Primary, r2Primary, Arrays.asList(tabN1[n1 - 1], tabN1[n1]), Arrays.asList(tabN2[n2 - 1], tabN2[n2]), (float) ((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0), rm.hoursCorrespondingToTimePoints[(int) Math.floor(((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0))] + rm.hoursCorrespondingToTimePoints[2] * (((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0) - Math.floor(((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0)))));
                             touch = true;
                             proxN1[n1 - 1] = true;
                             proxN2[n2 - 1] = true;
@@ -504,7 +492,7 @@ public class SegmentToSegment {
                                 List<Root> roots = new ArrayList<>();
                                 roots.add(r1);
                                 roots.add(r2);
-                                crossingInfos.add(new CrossingInfo(new double[]{dist[1], dist[2], tabN1[n1].birthTime, dist[0]}, roots, r1Primary, r2Primary, Arrays.asList(tabN1[n1 - 1], tabN1[n1]), Arrays.asList(tabN2[n2 - 1], tabN2[n2]), dayMax, timeInHours));
+                                crossingInfos.add(new CrossingInfo(new double[]{(Astart[0] + Astop[0] + Bstart[0] + Bstop[0]) / 4, (Astart[1] + Astop[1] + Bstart[1] + Bstop[1]) / 4, (tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0, 0}, roots, r1Primary, r2Primary, Arrays.asList(tabN1[n1 - 1], tabN1[n1]), Arrays.asList(tabN2[n2 - 1], tabN2[n2]), (float) ((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0), rm.hoursCorrespondingToTimePoints[(int) Math.floor(((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0))] + rm.hoursCorrespondingToTimePoints[2] * (((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0) - Math.floor(((tabN1[n1 - 1].birthTime + tabN1[n1].birthTime) / 2.0)))));
                                 touch = true;
                                 proxN1[n1 - 1] = true;
                                 proxN2[n2 - 1] = true;
@@ -601,23 +589,6 @@ public class SegmentToSegment {
     public static boolean couldIntersect(double valMin1, double valMin2, double valMax1, double valMax2, double threshold) {
         return (valMin1 - threshold) > valMax2 || (valMin2 - threshold) > valMax1;
     }
-
-    /**
-     * Filters crossing information by time.
-     *
-     * @param crossingInfos Set of crossing information.
-     * @param time          Time to filter by.
-     * @return List of crossing information that matches the specified time.
-     */
-    public static List<CrossingInfo> filterCrossingInfoByTime(HashSet<CrossingInfo> crossingInfos, float time) {
-        List<CrossingInfo> filtered = new ArrayList<>();
-        for (CrossingInfo info : crossingInfos) {
-            if (info.time == time) {
-                filtered.add(info);
-            }
-        }
-        return filtered;
-    }
 }
 
 /**
@@ -626,6 +597,7 @@ public class SegmentToSegment {
 class PlantData {
     String plantName;
     int[] crossingCounts;
+    double[] timeCorrespondingToTimePoints;
     HashSet<CrossingInfo> crossingInfos;
     int recentlyAddedCrossings = 0;
 
@@ -634,9 +606,13 @@ class PlantData {
      *
      * @param plantName Name of the plant.
      */
-    public PlantData(String plantName) {
+    public PlantData(String plantName, double[] timeCorrespondingToTimePoints) {
         this.plantName = plantName;
         this.crossingInfos = new HashSet<>();
+        this.timeCorrespondingToTimePoints = new double[timeCorrespondingToTimePoints.length];
+        System.arraycopy(timeCorrespondingToTimePoints, 0, this.timeCorrespondingToTimePoints, 0, timeCorrespondingToTimePoints.length);
+        // order ascending
+        Arrays.sort(this.timeCorrespondingToTimePoints);
     }
 
     /**
@@ -683,7 +659,7 @@ class CrossingInfo {
     Root primaryRoot2;
     boolean samePrimaryRoot;
     float time;
-    float timeInHours;
+    double timeInHours;
 
     /**
      * Constructor for CrossingInfo.
@@ -696,7 +672,7 @@ class CrossingInfo {
      * @param nodeRoot2    List of nodes for the second involved root.
      * @param time         Time of the crossing.
      */
-    public CrossingInfo(double[] position, List<Root> roots, Root primaryRoot1, Root primaryRoot2, List<Node> nodeRoot1, List<Node> nodeRoot2, float time, float timeInHours) {
+    public CrossingInfo(double[] position, List<Root> roots, Root primaryRoot1, Root primaryRoot2, List<Node> nodeRoot1, List<Node> nodeRoot2, float time, double timeInHours) {
         this.position = position;
         this.roots = roots;
         this.primaryRoot1 = primaryRoot1;
