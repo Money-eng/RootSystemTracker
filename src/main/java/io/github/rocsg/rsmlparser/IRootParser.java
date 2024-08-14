@@ -1,6 +1,5 @@
 package io.github.rocsg.rsmlparser;
 
-import java.util.ArrayList;
 import java.util.List;
 
 // Define the interface

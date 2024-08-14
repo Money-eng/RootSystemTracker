@@ -40,7 +40,7 @@ public class SegmentToSegment {
     public static void main(String[] args) throws IOException {
         ImageJ ij = new ImageJ();
         String mainDataDir = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\";
-        double proximityThreshold = 1.0;
+        double proximityThreshold = 2.0;
         RootModel rm = RootModel.RootModelWildReadFromRsml(mainDataDir + "61_graph_expertized.rsml");
         ImagePlus seqReg = IJ.openImage(mainDataDir + "22_registered_stack.tif");
         ImagePlus img = drawComplexByTime(rm, seqReg, proximityThreshold);

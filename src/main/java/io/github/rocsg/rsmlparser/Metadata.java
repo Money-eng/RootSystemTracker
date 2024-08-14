@@ -1,6 +1,7 @@
 package io.github.rocsg.rsmlparser;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,7 +13,7 @@ public class Metadata {
     float version;
     String unit;
     float resolution;
-    LocalDate modifDate;
+    LocalDateTime modifDate;
     String date2Use;
     String software;
     String user;
@@ -25,7 +26,7 @@ public class Metadata {
         this.version = 0;
         this.unit = "";
         this.resolution = 0;
-        this.modifDate = LocalDate.now();
+        this.modifDate = LocalDateTime.now();
         this.software = "";
         this.user = "";
         this.fileKey = "";
@@ -51,11 +52,11 @@ public class Metadata {
         this.version = version;
     }
 
-    public LocalDate getModifDate() {
+    public LocalDateTime getModifDate() {
         return modifDate;
     }
 
-    public void setModifDate(LocalDate modifDate) {
+    public void setModifDate(LocalDateTime modifDate) {
         this.modifDate = modifDate;
     }
 
@@ -99,21 +100,21 @@ public class Metadata {
         this.fileKey = fileKey;
     }
 
+    public double[] getObservationHours() {
+        return observationHours;
+    }
+
     public void setObservationHours(double[] observationHours) {
         this.observationHours = new double[observationHours.length];
         System.arraycopy(observationHours, 0, this.observationHours, 0, observationHours.length);
     }
 
-    public double[] getObservationHours() {
-        return observationHours;
+    public double getSize() {
+        return size;
     }
 
     public void setSize(double size) {
         this.size = size;
-    }
-
-    public double getSize() {
-        return size;
     }
 
     public void addImageInfo(String key, String value) {

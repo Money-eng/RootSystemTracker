@@ -1,15 +1,13 @@
 package io.github.rocsg.rsmlparser;
 
-import io.github.rocsg.rsmlparser.RSML2D.Root4Parser;
-
 import java.util.ArrayList;
 import java.util.List;
 
 // Plant.java
 public class Plant {
+    final List<IRootParser> roots;
     public String id;
     public String label;
-    final List<IRootParser> roots;
 
     public Plant() {
         this.roots = new ArrayList<>();

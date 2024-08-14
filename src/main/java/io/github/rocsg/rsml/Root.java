@@ -430,10 +430,6 @@ public class Root implements Comparable<Root>, IRootParser {
             if (debug) System.out.println(" i=" + i + " isExact ?" + tabExact[i] + " " + tabNode[i]);
         }
 
-
-
-
-
         Node prev = null;
         double dist = 0;
         // Calculate the distance to the previous exact node for each non-exact node
@@ -473,6 +469,9 @@ public class Root implements Comparable<Root>, IRootParser {
             if (!tabExact[i]) {
                 double estTime = 0;
                 double estTimeHours = 0;
+                if ( tabNodeNext[i] == null) {
+                    System.out.println("Error in updateTiming : tabNodeNext[i] is null");
+                }
                 double dh = tabNodeNext[i].birthTimeHours - tabNodePrev[i].birthTimeHours;
                 double dt = tabNodeNext[i].birthTime - tabNodePrev[i].birthTime;
                 double dl = distToNext[i] + distToPrev[i];

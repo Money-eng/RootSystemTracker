@@ -1,38 +1,33 @@
 package io.github.rocsg.rsmlparser.RSML2DplusT;
 
-import java.io.File;
-import java.text.Format;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.util.*;
-import java.util.regex.Pattern;
-
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
-import io.github.rocsg.rsmlparser.IRootModelParser;
 import io.github.rocsg.rsmlparser.Metadata;
+import io.github.rocsg.rsmlparser.Plant;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import io.github.rocsg.rsmlparser.Plant;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.File;
+import java.util.HashSet;
+import java.util.Set;
 
-public class RSMLParser2DT implements IRootModelParser {
+public class RSMLParser2DT {
     private Document document;
 
     public static void main(String[] args) {
         String rsmlFile = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\61_graph_expertized.rsml";
-       List<RootModel> rms = rootModelReadFromRsml(rsmlFile);
+        RootModel rm = rootModelReadFromRsml(rsmlFile);
+        RSMLWriter2DT.writeRSML(rm, "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\71_graph_expertized-Rewritten.rsml");
         System.out.println("Done");
     }
 
-    public static List<RootModel> rootModelReadFromRsml(String rsmlFile) {
-        List<RootModel> rootModels = new ArrayList<>();
+    // Reading RSML 2D = t file and return a list of RootModel
+
+    public static RootModel rootModelReadFromRsml(String rsmlFile) {
+        RootModel rootModels = new RootModel();
         try {
             File file = new File(rsmlFile);
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -47,12 +42,14 @@ public class RSMLParser2DT implements IRootModelParser {
                 RootModel rootModel = new RootModel();
                 parseScene(sceneElement, rootModel);
                 parseMetadata(rootElement, rootModel);
-                rootModels.add(rootModel);
+                rootModel.standardOrderingOfRoots();
+                rootModel.resampleFlyingRoots();
+                return rootModel;
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        rootModels.forEach(RootModel::standardOrderingOfRoots);
+        System.out.println("Error in reading RSML file");
         return rootModels;
     }
 
@@ -72,13 +69,13 @@ public class RSMLParser2DT implements IRootModelParser {
         // <observation-hours>0.0,13.6599,19.6568,25.6655,31.6591,37.6594,43.6526,49.6572,55.6594,61.6578,67.6603,73.6592,79.664,85.6588,91.657,95.4302,101.4292,107.4299,113.4346,119.4347,125.4336,131.4316,137.4288,157.5066,159.2217,164.6051,170.6008,181.3911,182.6025</observation-hours>
 
         String[] observationHours = metadata.getElementsByTagName("observation-hours").item(0).getTextContent().split(",");
-        double[] observationHoursDouble = new double[observationHours.length + 1 ];
+        double[] observationHoursDouble = new double[observationHours.length + 1];
         observationHoursDouble[0] = 0.0;
         for (int i = 0; i < observationHours.length; i++) {
             observationHoursDouble[i + 1] = Double.parseDouble(observationHours[i]);
         }
         rootMetadata.setObservationHours(observationHoursDouble);
-        rm.hoursCorrespondingToTimePoints =  rootMetadata.getObservationHours();
+        rm.hoursCorrespondingToTimePoints = rootMetadata.getObservationHours();
 
         Element image = (Element) metadata.getElementsByTagName("image").item(0);
         rootMetadata.addImageInfo("label", image.getElementsByTagName("label").item(0).getTextContent());
@@ -93,6 +90,7 @@ public class RSMLParser2DT implements IRootModelParser {
             Plant plant = new Plant();
             plant.id = (plantElement.getAttribute("ID"));
             plant.label = (plantElement.getAttribute("label"));
+
 
             rootModel.imgName = plantElement.getAttribute("label");
 
@@ -112,7 +110,7 @@ public class RSMLParser2DT implements IRootModelParser {
         Root root = new Root(null, rm, rootElement.getAttribute("label"), order);
         parseRootGeometry(rootElement, root);
         root.computeDistances();
-        if (order > 1 ) {
+        if (order > 1) {
             root.attachParent(parentRoot);
             parentRoot.attachChild(root);
         }
@@ -145,14 +143,4 @@ public class RSMLParser2DT implements IRootModelParser {
         }
     }
 
-
-    @Override
-    public IRootModelParser createRootModel(IRootModelParser rootModel, float time) {
-        return null;
-    }
-
-    @Override
-    public IRootModelParser createRootModels(Map<LocalDate, List<IRootModelParser>> rootModels, float scaleFactor) {
-        return null;
-    }
 }

@@ -19,6 +19,7 @@ import io.github.rocsg.fijiyama.registration.TransformUtils;
 import io.github.rocsg.rsmlparser.*;
 import io.github.rocsg.rsmlparser.RSML2D.Root4Parser;
 import io.github.rocsg.rsmlparser.RSML2D.RootModel4Parser;
+import io.github.rocsg.rsmlparser.RSML2D.Rsml2DParser;
 import org.apache.commons.math3.ml.clustering.Cluster;
 import org.apache.commons.math3.ml.clustering.Clusterer;
 import org.apache.commons.math3.ml.clustering.DoublePoint;
@@ -49,6 +50,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
@@ -800,8 +802,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             FileOutputStream outStream = new FileOutputStream(new File(f));
             transformer.transform(new DOMSource(dom), new StreamResult(outStream));
             outStream.close();
-        } catch (Exception ee) {
-            ee.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -3575,15 +3577,15 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @return the root model
      */
     @Override
-    public IRootModelParser createRootModels(Map<LocalDate, List<IRootModelParser>> rootModels, float scaleFactor) {
+    public IRootModelParser createRootModels(Map<LocalDateTime, List<IRootModelParser>> rootModels, float scaleFactor) {
         RootModel rm = new RootModel();
-        LocalDate firstDate = rootModels.keySet().iterator().next();
+        LocalDateTime firstDate = rootModels.keySet().iterator().next();
         RootModel4Parser firstRootModel = null;
         try {
             firstRootModel = (RootModel4Parser) rootModels.get(firstDate).get(0);
         } catch (IndexOutOfBoundsException e) {
             // find the first non empty root model
-            for (LocalDate date : rootModels.keySet()) {
+            for (LocalDateTime date : rootModels.keySet()) {
                 if (!rootModels.get(date).isEmpty()) {
                     firstRootModel = (RootModel4Parser) rootModels.get(date).get(0);
                     break;
@@ -3597,23 +3599,32 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         rm.dpi = getDPI(unit, res);
         rm.pixelSize = 2.54f / rm.dpi;
 
-        List<LocalDate> dates = new ArrayList<>(rootModels.keySet());
+        List<LocalDateTime> dates = new ArrayList<>(rootModels.keySet());
         Collections.sort(dates);
+
+        Map<String, List<Root4Parser>> rootsMap = new HashMap<>();
+
+        rm.metadata = new Metadata();
+        StringBuilder date2use = new StringBuilder();
+        rm.hoursCorrespondingToTimePoints = new double[dates.size()];
+        for (LocalDateTime date : dates) {
+            for (IRootModelParser model : rootModels.get(date)) {
+                parseRootModel((RootModel4Parser) model, rootsMap);
+                this.metadata = ((RootModel4Parser) model).metadatas;
+                date2use.append(" ").append(Rsml2DParser.getDate(((RootModel4Parser) model).metadatas.getDate2Use()));
+            }
+        }
+        rm.metadata.setDate2Use(date2use.toString());
+        rm.metadata.setSoftware("RootSystemTracker");
+        rm.metadata.setUser("User");
 
         double[] hours = new double[dates.size()];
         hours[0] = 0;
         for (int i = 1; i < dates.size(); i++) {
-            hours[i] = hours[i - 1] + ChronoUnit.HOURS.between(dates.get(i - 1).atStartOfDay(), dates.get(i).atStartOfDay());
+            hours[i] = hours[i - 1] + ChronoUnit.HOURS.between(dates.get(i - 1), dates.get(i));
         }
         rm.hoursCorrespondingToTimePoints = hours;
-
-        Map<String, List<Root4Parser>> rootsMap = new HashMap<>();
-
-        for (LocalDate date : dates) {
-            for (IRootModelParser model : rootModels.get(date)) {
-                parseRootModel((RootModel4Parser) model, rootsMap);
-            }
-        }
+        rm.metadata.setObservationHours(hours);
 
         for (int level = 1; level <= maxRootOrder; level++) {
             for (String id : rootsMap.keySet()) {
@@ -3672,7 +3683,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @param dates       the dates
      * @param scaleFactor the scale factor
      */
-    private void buildRootHierarchy(RootModel rm, Map<String, List<Root4Parser>> rootsMap, String id, Root parent, List<LocalDate> dates, float scaleFactor) {
+    private void buildRootHierarchy(RootModel rm, Map<String, List<Root4Parser>> rootsMap, String id, Root parent, List<LocalDateTime> dates, float scaleFactor) {
         List<Root4Parser> rootList = rootsMap.get(id);
         Root root = null;
         root = createRoot(rm, id, rootList, dates, scaleFactor);
@@ -3725,7 +3736,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @param scaleFactor the scale factor
      * @return the root
      */
-    private Root createRoot(RootModel rm, String id, List<Root4Parser> rootList, List<LocalDate> dates, float scaleFactor) {
+    private Root createRoot(RootModel rm, String id, List<Root4Parser> rootList, List<LocalDateTime> dates, float scaleFactor) {
         // Create the root object
         Root root = new Root(null, rm, "", rootList.get(0).getOrder());
         root.rootID = id;
@@ -3776,9 +3787,12 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
     }
 
     /**
-     * Finalisation de la creation du rootmodel avant blockmatching
+     * Finalisation de la creation du rootmodel après blockmatching
      */
     public void adjustRootModel(ImagePlus refImage) {
+        double mean_tot_dist = 0;
+        double max_tot_dist = 0;
+        int count = 0;
         Map<Float, List<Node>> nodes = new HashMap<>();
 
         // Iterate through each root in the root list
@@ -3800,13 +3814,19 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
 
             // Call the new function to process nodes and calculate means
-            calculateNodeMinImageDiff2(r, nodes, timeWithMaxPoints, minTime, refImage);
+            List<Double> meanDist = selectionBestNode(r, nodes, timeWithMaxPoints, minTime);
+            if (r.order != 1) {
+                max_tot_dist = Math.max(max_tot_dist, meanDist.stream().max(Double::compareTo).get());
+                mean_tot_dist += meanDist.stream().mapToDouble(Double::doubleValue).sum();
+                count += meanDist.size();
+            }
             //calculateNodeMinLength(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMin(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMeans(r, nodes, timeWithMaxPoints, minTime);
             //calculateNodeMax(r, nodes, timeWithMaxPoints, minTime);
             nodes.clear();
         }
+        mean_tot_dist /= count;
 
         for (Root r : this.rootList) {
             if (r.order >= 2) { // TODO generalize
@@ -4099,7 +4119,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         assert r.nNodes == count : "The number of nodes of the newly created root is not the same as the sum of the number of points of all the roots";
     }
 
-    private void calculateNodeMinImageDiff2(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime, ImagePlus imp) {
+    private List<Double> selectionBestNode(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
+        List<Double> mean_dist_node = new ArrayList<>();
         float lastTime = nodes.keySet().stream().max(Float::compareTo).get();
 
         float time = lastTime -1;
@@ -4131,7 +4152,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             float maxT = Float.MIN_VALUE;
             for (float key : nodes.keySet()) {
                 try {
-                    double filter = nodes.get(key).get(j).x;
+                    float errorDetection = nodes.get(key).get(j).x;
                     maxT = Math.max(key, maxT);
                     minT = Math.min(key, minT);
                     diameter = nodes.get(minT).get(j).diameter;
@@ -4163,6 +4184,19 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             }
 
             if (n.child != null) n.child.parent = n;
+
+            double mean_dist = 0;
+            int count = 0;
+            for (float key : nodes.keySet()) {
+                try {
+                    // evaluate the mean distance between the node and the other non selected nodes
+                    mean_dist += Node.distanceBetween(n, nodes.get(key).get(j));
+                    count++;
+                } catch (IndexOutOfBoundsException ignored) {
+                }
+            }
+            mean_dist_node.add(mean_dist / count);
+
             n = n.child;
         }
 
@@ -4174,6 +4208,10 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             n1 = n1.child;
         }
         assert r.nNodes == count : "The number of nodes of the newly created root is not the same as the sum of the number of points of all the roots";
+        if (mean_dist_node.stream().max(Double::compareTo).get() > 200) {
+            System.out.println("Error: mean distance is too high");
+        }
+        return mean_dist_node;
     }
 
     /**
@@ -4417,7 +4455,71 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
     public int compareTo(RootModel o) {
         return 0; // TODO
     }
+
+    public static RootModel createRandomRootModel(int maxRoots, int maxOrder) {
+        Random random = new Random();
+        RootModel rootModel = new RootModel();
+
+        int numberOfRoots = random.nextInt(maxRoots) + 1;
+
+        for (int i = 0; i < numberOfRoots; i++) {
+            createRandomRoot(rootModel, null, 1, maxOrder, random);
+        }
+
+        rootModel.standardOrderingOfRoots();
+        return rootModel;
+    }
+
+    private static void createRandomRoot(RootModel rootModel, Root parentRoot, int currentOrder, int maxOrder, Random random) {
+        if (currentOrder > maxOrder) return;
+
+        // Crée un ID unique et un label aléatoire pour la racine
+        String rootId = "Root_" + rootModel.rootList.size();
+        String rootLabel = "Label_" + currentOrder + "_" + rootModel.rootList.size();
+
+        // Crée la racine
+        Root root = new Root(null, rootModel, rootLabel, currentOrder);
+
+        // Ajoute la racine au modèle
+        rootModel.rootList.add(root);
+
+        // Ajouter des points aléatoires à la racine
+        int numberOfPoints = random.nextInt(10) + 2; // Nombre aléatoire de points par racine
+        float lastBirthTime = parentRoot != null ? Math.max(parentRoot.firstNode.birthTime + random.nextInt((int) Math.ceil(parentRoot.lastNode.birthTime)), 1) : 0;
+
+        for (int i = 0; i < numberOfPoints; i++) {
+            //
+            float birthTime = lastBirthTime +  Math.abs(random.nextInt(10));
+            float birthTimeHours = birthTime * 24; // Augmentation aléatoire
+
+            root.addNode(
+                    random.nextFloat() * 100, // coord_x
+                    random.nextFloat() * 100, // coord_y
+                    birthTime,                // birthTime
+                    birthTimeHours,           // birthTimeHours
+                    random.nextFloat() * 10,  // diameter
+                    random.nextFloat() * 10,  // vx
+                    random.nextFloat() * 10,  // vy
+                    i == 0                    // isFirstNode
+            );
+
+            lastBirthTime = birthTime;
+        }
+
+        if (parentRoot != null) {
+            root.attachParent(parentRoot);
+            parentRoot.attachChild(root);
+        }
+
+        // Crée des enfants aléatoires pour la racine actuelle
+        int numChildren = random.nextInt(maxOrder - currentOrder + 1);
+        for (int i = 0; i < numChildren; i++) {
+            createRandomRoot(rootModel, root, currentOrder + 1, maxOrder, random);
+        }
+    }
+
 }
+
 
 // new distance measure DistanceMeasure
 class CustomDistance implements DistanceMeasure {

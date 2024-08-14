@@ -164,6 +164,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
      * The current image.
      */
     private ImagePlus currentImage = null;
+
     /**
      * The current model.
      */
@@ -416,6 +417,10 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
             tab = this.stackPath.split("\\\\");
         }
         return tab[tab.length - 2];
+    }
+
+    public void setCurrentModel(RootModel currentModel) {
+        this.currentModel = currentModel;
     }
 
     /**
@@ -681,7 +686,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         registeredStack = IJ.openImage(new File(stackPath).getAbsolutePath());
 
         // Load the RSML model from the specified path
-        currentModel = rootModelReadFromRsml(rsmlPath).get(0); // TODO DANGER
+        currentModel = rootModelReadFromRsml(rsmlPath); // TODO DANGER
 
         // Clean the RSML model and resample the flying roots
         System.out.println(currentModel.cleanWildRsml());
@@ -926,7 +931,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
 
         // Update the current image with the modified model
         try {
-            VitimageUtils.actualizeData/*MultiThread*/(projectRsmlOnImage(currentModel), currentImage);
+            VitimageUtils.actualizeDataMultiThread(projectRsmlOnImage(currentModel), currentImage);
         }
         catch (Exception e) {
             VitimageUtils.actualizeData(projectRsmlOnImage(currentModel), currentImage);
@@ -1783,7 +1788,6 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         return infos;
     }
 
-
     private Node getNodeStruture(RootModel rm, TreeMap<Double, List<Point3d>> pointsByTime, Map<Double, List<Boolean>> extremityFirst, Map<Double, List<Boolean>> extremityLast, List<Node> recordedNodes, Node nPar) {
         for (Map.Entry<Double, List<Point3d>> entry : pointsByTime.entrySet()) {
 
@@ -2093,7 +2097,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
 
         // Update the data in the current image based on the current model
         try {
-            VitimageUtils.actualizeData/*MultiThread*/(projectRsmlOnImage(currentModel), currentImage);
+            VitimageUtils.actualizeDataMultiThread(projectRsmlOnImage(currentModel), currentImage);
         }
         catch (Exception e) {
             VitimageUtils.actualizeData(projectRsmlOnImage(currentModel), currentImage);
@@ -2118,7 +2122,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         IJ.setTool("hand");
         addLog("Saving RSML", 0);
         this.currentModel.writeRSML3D(new File(dataDir, "61_graph_expertized.rsml").getAbsolutePath().replace("\\", "/"), "", true, false);
-        VitimageUtils.actualizeData/*MultiThread*/(projectRsmlOnImage(currentModel), currentImage);
+        VitimageUtils.actualizeData(projectRsmlOnImage(currentModel), currentImage);
         addLog("Ok.", 2);
         enable(all);
         disable(OK);
@@ -2185,7 +2189,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
 
         try {
             // Loop over each time point in the model
-            IntStream.range(0, Nt).parallel().forEach(i -> {
+            (IntStream.range(0, Nt)).parallel().forEach(i -> {
                 // Create a grayscale image of the RSML model at this time point
                 ImagePlus imgRSML = rm.createGrayScaleImageWithTime(imgInitSize, zoomFactor, false, (i + 1), true,
                         new boolean[]{true, true, true, false, true}, new double[]{2, 2});

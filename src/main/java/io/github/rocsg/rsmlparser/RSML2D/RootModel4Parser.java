@@ -42,7 +42,7 @@ public class RootModel4Parser implements IRootModelParser {
         return metadatas.getResolution();
     }
 
-    public LocalDate getModifDate() {
+    public LocalDateTime getModifDate() {
         return metadatas.getModifDate();
     }
 
@@ -80,7 +80,7 @@ public class RootModel4Parser implements IRootModelParser {
     }
 
     @Override
-    public IRootModelParser createRootModels(Map<LocalDate, List<IRootModelParser>> rootModels, float scaleFactor) {
+    public IRootModelParser createRootModels(Map<LocalDateTime, List<IRootModelParser>> rootModels, float scaleFactor) {
         return null;
     }
 

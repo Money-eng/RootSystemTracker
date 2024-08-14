@@ -15,11 +15,18 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 
 /**
  * RsmlParser2 class for parsing RSML files and extracting root models.
@@ -28,24 +35,38 @@ import java.util.regex.Pattern;
 public class Rsml2DParser {
 
     public static SelectionStrategy strategy;
-    public static List<LocalDate> removedDates = new ArrayList<>();
+    public static List<LocalDateTime> removedDates = new ArrayList<>();
     public String path2RSMLs;
 
-    /**
-     * Constructor for RsmlParser2.
-     * Initializes the path to RSML files and the list of dates to be removed.
-     *
-     * @param path2RSMLs   Path to the directory containing RSML files.
-     * @param removedDates List of dates to be removed.
-     */
-    public Rsml2DParser(String path2RSMLs, List<LocalDate> removedDates) {
-        this.path2RSMLs = path2RSMLs;
-        Rsml2DParser.removedDates = new ArrayList<>(removedDates);
+    // Formatter pour LocalDateTime (dates avec heures)
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = new DateTimeFormatterBuilder()
+            .appendOptional(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd_MM_yyyy_HH_mm_ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd_MM_yyyy_HH_mm"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy_MM_dd_HH_mm_ss"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy_MM_dd_HH_mm"))
+            .appendOptional(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            .toFormatter(Locale.getDefault());
 
-        // Set the backup strategy and selection strategy for RSML files.
-        RSMLFileUtils.backupStrategy = SelectionStrategy.LAST_VERSION;
-        strategy = SelectionStrategy.MOST_COMPLEXITY;
-    }
+    // Formatter pour LocalDate (dates sans heures)
+    private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
+            .appendOptional(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy/MM/dd"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy.MM.dd"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyyMMdd"))
+            .appendOptional(DateTimeFormatter.ofPattern("dd_MM_yyyy"))
+            .appendOptional(DateTimeFormatter.ofPattern("yyyy_MM_dd"))
+            .appendOptional(DateTimeFormatter.ISO_LOCAL_DATE)
+            .toFormatter(Locale.getDefault());
 
     public static void main(String[] args) throws IOException {
         // Load the SimpleITK Java library for image processing.
@@ -54,6 +75,22 @@ public class Rsml2DParser {
         // Initialize ImageJ for image visualization.
         ImageJ ij = new ImageJ();
         RootModelGraph rootModelGraph = new RootModelGraph();
+    }
+
+    /**
+     * Constructor for RsmlParser2.
+     * Initializes the path to RSML files and the list of dates to be removed.
+     *
+     * @param path2RSMLs   Path to the directory containing RSML files.
+     * @param removedDates List of dates to be removed.
+     */
+    public Rsml2DParser(String path2RSMLs, List<LocalDateTime> removedDates) {
+        this.path2RSMLs = path2RSMLs;
+        Rsml2DParser.removedDates = new ArrayList<>(removedDates);
+
+        // Set the backup strategy and selection strategy for RSML files.
+        RSMLFileUtils.backupStrategy = SelectionStrategy.LAST_VERSION;
+        strategy = SelectionStrategy.MOST_COMPLEXITY;
     }
 
     /**
@@ -195,7 +232,8 @@ public class Rsml2DParser {
         }
     }
 
-    /** Parse annotations of a root element.
+    /**
+     * Parse annotations of a root element.
      * Extracts annotations from the root element and adds them to the Root4Parser object.
      *
      * @param rootElement The root element.
@@ -241,7 +279,6 @@ public class Rsml2DParser {
         }
     }
 
-
     /**
      * Create a Function object from a function element.
      *
@@ -266,10 +303,10 @@ public class Rsml2DParser {
      * @param folderPath Path to the folder containing RSML files.
      * @return A map of LocalDate to lists of IRootModelParser objects.
      */
-    public static Map<LocalDate, List<IRootModelParser>> getRSMLsInfos(Path folderPath) {
-        Map<String, LocalDate> fileDates = getFileDates(folderPath);
-        TreeSet<String> keptRsmlFiles = RSMLFileUtils.checkUniquenessRSMLs(folderPath, (ConcurrentHashMap<String, LocalDate>) fileDates, strategy, removedDates);
-        Map<LocalDate, List<IRootModelParser>> rsmlInfos = initializeRsmlInfos(fileDates);
+    public static Map<LocalDateTime, List<IRootModelParser>> getRSMLsInfos(Path folderPath) {
+        Map<String, LocalDateTime> fileDates = getFileDates(folderPath);
+        TreeSet<String> keptRsmlFiles = RSMLFileUtils.checkUniquenessRSMLs(folderPath, (ConcurrentHashMap<String, LocalDateTime>) fileDates, strategy, removedDates);
+        Map<LocalDateTime, List<IRootModelParser>> rsmlInfos = initializeRsmlInfos(fileDates);
 
         for (String rsmlFile : keptRsmlFiles) {
             try {
@@ -309,8 +346,8 @@ public class Rsml2DParser {
      * @param folderPath Path to the folder containing RSML files.
      * @return A map of filenames to LocalDate objects.
      */
-    private static Map<String, LocalDate> getFileDates(Path folderPath) {
-        Map<String, LocalDate> fileDates = new ConcurrentHashMap<>();
+    private static Map<String, LocalDateTime> getFileDates(Path folderPath) {
+        Map<String, LocalDateTime> fileDates = new ConcurrentHashMap<>();
         try {
             Files.list(folderPath)
                     .parallel()
@@ -328,8 +365,8 @@ public class Rsml2DParser {
      * @param fileDates Map of filenames to LocalDate objects.
      * @return A map of LocalDate to lists of IRootModelParser objects.
      */
-    private static Map<LocalDate, List<IRootModelParser>> initializeRsmlInfos(Map<String, LocalDate> fileDates) {
-        Map<LocalDate, List<IRootModelParser>> rsmlInfos = new TreeMap<>();
+    private static Map<LocalDateTime, List<IRootModelParser>> initializeRsmlInfos(Map<String, LocalDateTime> fileDates) {
+        Map<LocalDateTime, List<IRootModelParser>> rsmlInfos = new TreeMap<>();
         fileDates.values().forEach(date -> rsmlInfos.put(date, new ArrayList<>()));
         return rsmlInfos;
     }
@@ -382,9 +419,9 @@ public class Rsml2DParser {
      * @param metadataElement The metadata element.
      * @return The parsed LocalDate object.
      */
-    private static LocalDate parseModifDate(Element metadataElement) {
+    private static LocalDateTime parseModifDate(Element metadataElement) {
         String dateStr = metadataElement.getElementsByTagName("last-modified").item(0).getTextContent();
-        return "today".equals(dateStr) ? LocalDate.now() : getDate(dateStr);
+        return "today".equals(dateStr) ? LocalDateTime.now() : getDate(dateStr);
     }
 
     /**
@@ -423,20 +460,33 @@ public class Rsml2DParser {
     /**
      * Extract date from a string using a predefined pattern.
      *
-     * @param dateStr The string containing the date.
-     * @return The extracted LocalDate object, or null if the pattern does not match.
+     * @param inputStr The string containing the date.
+     * @return The extracted LocalDateTime object, or null if the pattern does not match.
      */
-    static LocalDate getDate(String dateStr) {
-        Pattern pattern = Pattern.compile("\\d{2}_\\d{2}_\\d{4}");
-        Matcher matcher = pattern.matcher(dateStr);
-        if (matcher.find()) {
-            String[] dateParts = matcher.group(0).split("_");
-            return LocalDate.of(
-                    Integer.parseInt(dateParts[2]),
-                    Integer.parseInt(dateParts[1]),
-                    Integer.parseInt(dateParts[0])
-            );
+    public static LocalDateTime getDate(String inputStr) {
+        // Pattern regex pour extraire des segments de date potentiels
+        Pattern datePattern = Pattern.compile("\\d{2}[_\\-/\\.]\\d{2}[_\\-/\\.]\\d{4}(?:[_\\-/\\.]\\d{2})?(?:[_\\-/\\.]\\d{2})?(?:[_\\-/\\.]\\d{2})?");
+        Matcher matcher = datePattern.matcher(inputStr);
+
+        while (matcher.find()) {
+            String dateSegment = matcher.group(0); // Extrait la date potentielle
+            // Remplacer tous les séparateurs par "_"
+            dateSegment = dateSegment.replace("-", "_").replace("/", "_").replace(".", "_");
+
+            try {
+                // Tente de parser comme LocalDateTime (date avec heure)
+                return LocalDateTime.parse(dateSegment, DATE_TIME_FORMATTER);
+            } catch (DateTimeParseException e1) {
+                try {
+                    // Si échec, tente de parser comme LocalDate (date sans heure)
+                    return LocalDate.parse(dateSegment, DATE_FORMATTER).atStartOfDay();
+                } catch (DateTimeParseException e2) {
+                    // Si échec, continuer à chercher dans la chaîne
+                }
+            }
         }
+
+        System.out.println("No valid date found in: " + inputStr);
         return null;
     }
 

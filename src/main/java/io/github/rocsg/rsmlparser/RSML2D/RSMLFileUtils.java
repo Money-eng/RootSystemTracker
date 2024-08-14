@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -54,7 +55,7 @@ public class RSMLFileUtils {
      * @param strategy   the selection strategy to use
      * @return a stack of selected RSML file paths
      */
-    public static TreeSet<String> checkUniquenessRSMLs(Path folderPath, ConcurrentHashMap<String, LocalDate> dates, SelectionStrategy strategy, List<LocalDate> removedDates) {
+    public static TreeSet<String> checkUniquenessRSMLs(Path folderPath, ConcurrentHashMap<String, LocalDateTime> dates, SelectionStrategy strategy, List<LocalDateTime> removedDates) {
         try {
             Map<String, List<Path>> groupedFiles = Files.list(folderPath)
                     .filter(path -> path.toString().matches(".*\\.(rsml|rsml\\d{2})$"))

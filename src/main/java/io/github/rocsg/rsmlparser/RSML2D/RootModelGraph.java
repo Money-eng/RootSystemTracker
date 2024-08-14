@@ -12,6 +12,7 @@ import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
 import io.github.rocsg.rsmlparser.IRootModelParser;
+import io.github.rocsg.rsmlparser.RSML2DplusT.RSMLWriter2DT;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
 import math3d.Point3d;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
@@ -28,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -51,7 +53,7 @@ public class RootModelGraph {
     List<ItkTransform> transforms;
 
     public RootModelGraph() throws IOException {
-        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\\\B73_R12_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\12_stack_cropped.tif");
+        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\12_stack_cropped.tif");
     }
 
     /**
@@ -108,12 +110,12 @@ public class RootModelGraph {
 
 
         /*****DEBUG*****/
-        List<LocalDate> removedDates = new ArrayList<>(); // DANGER
-        Map<LocalDate, List<IRootModelParser>> result = parseRsmlFiles(path2RSMLs, removedDates);
+        List<LocalDateTime> removedDates = new ArrayList<>(); // DANGER
+        Map<LocalDateTime, List<IRootModelParser>> result = parseRsmlFiles(path2RSMLs, removedDates);
 
-        List<LocalDate> datesFromImages = new ArrayList<>();
+        List<LocalDateTime> datesFromImages = new ArrayList<>();
 
-        ConcurrentHashMap<String, LocalDate> fileDates = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, LocalDateTime> fileDates = new ConcurrentHashMap<>();
         // get the date of the rsml files
         try {
             Path path2Images = Paths.get(path2RSMLs);
@@ -132,12 +134,12 @@ public class RootModelGraph {
             if (!datesFromImages.contains(date)) datesFromImages.add(date);
         });
 
-        HashSet<LocalDate> totalDates = new HashSet<>(result.keySet());
+        HashSet<LocalDateTime> totalDates = new HashSet<>(result.keySet());
         totalDates.addAll(removedDates);
         totalDates.addAll(datesFromImages);
         // sort the dates in ascending order
-        List<LocalDate> sortedDates = new ArrayList<>(totalDates);
-        sortedDates.sort(LocalDate::compareTo);
+        List<LocalDateTime> sortedDates = new ArrayList<>(totalDates);
+        sortedDates.sort(LocalDateTime::compareTo);
 
         // adding the dates to result
         sortedDates.forEach(date -> {
@@ -160,7 +162,7 @@ public class RootModelGraph {
 
         // Read all the transforms and apply them
         ImagePlus imgInitSize = new ImagePlus(originalScaledImagePath);
-        //displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
+        displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
 
 //        RootModel basicRM = new RootModel();
 //        basicRM = (RootModel) basicRM.createRootModels(result, (float)1);
@@ -180,6 +182,8 @@ public class RootModelGraph {
         Path path = Paths.get(path2NewRSML).getParent();
         if (!Files.exists(path)) Files.createDirectories(path);
         rms.writeRSML3D(new File(path2NewRSML).getAbsolutePath().replace("\\", "/"), "", true, false);
+
+        RSMLWriter2DT.writeRSML(rms, path2NewRSML);
 
         //BlockMatchingRegistrationRootModel.setupAndRunRsmlBlockMatchingRegistration(rms, refImage, true);
 
@@ -295,21 +299,32 @@ public class RootModelGraph {
             Graphics2D g2d = image.createGraphics();
             g2d.setColor(Color.RED);
 
+            int cont = 0;
             for (org.graphstream.graph.Node node : g) {
+                cont++;
+                if (!(cont % 4 == 0)) continue;
                 Object[] xyz = node.getAttribute("xyz?");
                 double x = (float) xyz[0];
                 double y = (float) xyz[1];
                 double t = (float) xyz[2];
+                g2d.setColor(Color.RED);
                 boolean isInsertionPoint = (boolean) xyz[3];
-                if (justStack && t == i) g2d.fill(new Ellipse2D.Double(x - 2, y - 2, 4, 4));
-                else if (!justStack && t <= i) g2d.fill(new Ellipse2D.Double(x - 1, y - 1, 2, 2));
+                //if (justStack && t == i) g2d.fill(new Ellipse2D.Double(x - 2, y - 2, 2, 2));
+                // random color
+
+                if (justStack) {
+                    g2d.setColor(new Color((int) (Math.random() * 0x1000000)));
+                    g2d.fill(new Ellipse2D.Double(x - 4, y - 4, 4, 4));
+                } else if (!justStack && t <= i) {
+                    g2d.setColor(Color.blue);
+                    g2d.fill(new Ellipse2D.Double(x - 4, y - 4, 4, 4));
+                }
                 if (!justStack && isInsertionPoint) {
                     g2d.setColor(Color.GREEN);
                     g2d.fill(new Ellipse2D.Double(x - 2, y - 2, 4, 4));
                     g2d.setColor(Color.RED);
                 }
             }
-
             for (int j = 0; j < numEdges; j++) {
                 org.graphstream.graph.Edge edge = g.getEdge(j);
                 Object[] xyz0 = edge.getNode0().getAttribute("xyz?");
@@ -322,6 +337,7 @@ public class RootModelGraph {
                 double t2 = (float) xyz1[2];
                 boolean isInsertionPoint = (boolean) xyz0[3];
                 boolean isInsertionPoint1 = (boolean) xyz1[3];
+                g2d.setColor(Color.RED);
                 if (justStack && (t1 == i && t2 == i)) {
                     g2d.draw(new Line2D.Double(x1, y1, x2, y2));
                     // if line is superior length to a certain threshold, string plot
@@ -447,9 +463,9 @@ public class RootModelGraph {
      * @return A Map with the date as key and the list of IRootModelParser as value
      * @throws IOException If an I/O error occurs
      */
-    private Map<LocalDate, List<IRootModelParser>> parseRsmlFiles(String path2RSMLs, List<LocalDate> removedDates) throws IOException {
+    private Map<LocalDateTime, List<IRootModelParser>> parseRsmlFiles(String path2RSMLs, List<LocalDateTime> removedDates) throws IOException {
         Rsml2DParser rsml2DParser = new Rsml2DParser(path2RSMLs, removedDates);
-        Map<LocalDate, List<IRootModelParser>> result = Rsml2DParser.getRSMLsInfos(Paths.get(rsml2DParser.path2RSMLs));
+        Map<LocalDateTime, List<IRootModelParser>> result = Rsml2DParser.getRSMLsInfos(Paths.get(rsml2DParser.path2RSMLs));
         result.forEach((date, rootModel4Parsers) -> {
             System.out.println("Date : " + date);
             rootModel4Parsers.forEach(System.out::println);

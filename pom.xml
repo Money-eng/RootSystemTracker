@@ -65,6 +65,17 @@
                 <role>maintainer</role>
             </roles>
         </developer>
+        <developer>
+            <id>LGPOLYTECH</id>
+            <name>Loaï Gandeel</name>
+            <url>https://github.com/LGPolytech</url>
+            <roles>
+                <role>developer</role>
+                <role>debugger</role>
+                <role>support</role>
+                <role>maintainer</role>
+            </roles>
+        </developer>
     </developers>
 
     <mailingLists>
@@ -91,14 +102,6 @@
             <artifactId>fijiyama</artifactId>
             <version>4.4.0-SNAPSHOT</version>
         </dependency>
-
-        <!--<dependency>
-          <groupId>io.github.rocsg</groupId>
-          <artifactId>fijiyama</artifactId>
-          <version>4.0.10</version>
-          <scope>system</scope>
-          <systemPath>/home/rfernandez/.m2/repository/io/github/rocsg/fijiyama/4.0.10/fijiyama-4.0.10.jar</systemPath>
-        </dependency>-->
 
         <dependency>
             <groupId>sc.fiji</groupId>
@@ -127,11 +130,13 @@
         </dependency>
 
 
+        <!-- https://mvnrepository.com/artifact/loci/loci_plugins -->
         <dependency>
             <groupId>loci</groupId>
             <artifactId>loci_plugins</artifactId>
-            <version>4.5-imagej-2.0.0-beta6</version>
+            <version>4.4.9</version>
         </dependency>
+
         <dependency>
             <groupId>fr.inra.ijpb</groupId>
             <artifactId>MorphoLibJ_</artifactId>
@@ -141,10 +146,13 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-math3</artifactId>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.poi/poi -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>
+            <version>5.3.0</version>
         </dependency>
+
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-imaging</artifactId>
@@ -181,10 +189,13 @@
             <version>4.2.2</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/com.opencsv/opencsv -->
         <dependency>
             <groupId>com.opencsv</groupId>
             <artifactId>opencsv</artifactId>
+            <version>5.9</version>
         </dependency>
+
 
         <dependency>
             <groupId>org.itk.simple</groupId>
@@ -194,18 +205,9 @@
         </dependency>
 
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.0</version> <!-- can be omitted when using the BOM -->
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -229,6 +231,36 @@
             <groupId>org.jfree</groupId>
             <artifactId>jfreechart</artifactId>
             <version>1.5.5</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.openjdk.jmh/jmh-core -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>1.37</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.openjdk.jmh/jmh-generator-annprocess -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <version>1.37</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.openjdk.jmh/jmh-generator-reflection -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-reflection</artifactId>
+            <version>1.37</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.openjdk.jmh/jmh-generator-bytecode -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-bytecode</artifactId>
+            <version>1.37</version>
         </dependency>
 
 

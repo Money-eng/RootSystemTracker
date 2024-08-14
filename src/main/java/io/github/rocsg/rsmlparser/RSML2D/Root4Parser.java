@@ -3,13 +3,14 @@ package io.github.rocsg.rsmlparser.RSML2D;
 import io.github.rocsg.rsmlparser.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class Root4Parser implements IRootParser {
     public static int numFunctions;
-    public final LocalDate currentTime;
+    public final LocalDateTime currentTime;
     protected final String id;
     final String poAccession;
     final List<Function> functions;
@@ -21,7 +22,7 @@ public class Root4Parser implements IRootParser {
     protected IRootParser parent;
     private Geometry geometry;
 
-    public Root4Parser(String id, String label, String poAccession, Root4Parser parent, int order, LocalDate currentTime) {
+    public Root4Parser(String id, String label, String poAccession, Root4Parser parent, int order, LocalDateTime currentTime) {
         this.id = id;
         this.label = label;
         this.poAccession = poAccession;
