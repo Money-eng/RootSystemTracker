@@ -2787,21 +2787,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @param timeAppearance the time of appearance
      */
     public void applyTransformToGeometry(ItkTransform tr, int timeAppearance) {
-        Root r;
-        Node n;
-        double[] coords;
         for (Root root : rootList) {
-            r = root;
-            n = r.firstNode;
-            coords = tr.transformPoint(new double[]{n.x, n.y, 0});
-            n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
-            n.y += (n.birthTime == timeAppearance ? (n.y - (float) coords[1]) : 0);
-            while (n.child != null) {
-                n = n.child;
-                coords = tr.transformPoint(new double[]{n.x, n.y, 0});
-                n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
-                n.y += (n.birthTime == timeAppearance ? (n.y - (float) coords[1]) : 0);
-            }
+            root.applyTransformToGeometry(tr, timeAppearance);
         }
         System.out.println("Transformation applied");
     }
@@ -3325,7 +3312,6 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         return tracingP;
     }
 
-
     /**
      * Create an image processor based on the roots contained into the root system.
      *
@@ -3535,6 +3521,14 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
     //// Handling interface methods
 
+    @Override
+    public List<IRootParser> getRoots() {
+        // convert rootList to IRootParser list
+        List<IRootParser> roots = new ArrayList<>();
+        roots.addAll(rootList);
+        return roots;
+    }
+
     /**
      * Do not use, only for 2D models
      *
@@ -3577,19 +3571,16 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
      * @return the root model
      */
     @Override
-    public IRootModelParser createRootModels(Map<LocalDateTime, List<IRootModelParser>> rootModels, float scaleFactor) {
+    public IRootModelParser createRootModels(Map<LocalDateTime, IRootModelParser> rootModels, float scaleFactor) {
         RootModel rm = new RootModel();
         LocalDateTime firstDate = rootModels.keySet().iterator().next();
         RootModel4Parser firstRootModel = null;
         try {
-            firstRootModel = (RootModel4Parser) rootModels.get(firstDate).get(0);
+            firstRootModel = (RootModel4Parser) rootModels.get(firstDate);
         } catch (IndexOutOfBoundsException e) {
-            // find the first non empty root model
+            // find the first non-empty root model
             for (LocalDateTime date : rootModels.keySet()) {
-                if (!rootModels.get(date).isEmpty()) {
-                    firstRootModel = (RootModel4Parser) rootModels.get(date).get(0);
-                    break;
-                }
+                    firstRootModel = (RootModel4Parser) rootModels.get(date);
             }
         }
 
@@ -3608,11 +3599,9 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         StringBuilder date2use = new StringBuilder();
         rm.hoursCorrespondingToTimePoints = new double[dates.size()];
         for (LocalDateTime date : dates) {
-            for (IRootModelParser model : rootModels.get(date)) {
-                parseRootModel((RootModel4Parser) model, rootsMap);
-                this.metadata = ((RootModel4Parser) model).metadatas;
-                date2use.append(" ").append(Rsml2DParser.getDate(((RootModel4Parser) model).metadatas.getDate2Use()));
-            }
+            parseRootModel((RootModel4Parser) rootModels.get(date), rootsMap);
+            this.metadata = ((RootModel4Parser) rootModels.get(date)).metadatas;
+            date2use.append(" ").append(Rsml2DParser.getDate(((RootModel4Parser) rootModels.get(date)).metadatas.getDate2Use()));
         }
         rm.metadata.setDate2Use(date2use.toString());
         rm.metadata.setSoftware("RootSystemTracker");
@@ -3638,6 +3627,17 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         rm.cleanWildRsml();
         rm.resampleFlyingRoots();
         return rm;
+    }
+
+    /**
+     * Implementation of the minimization problem
+     * We map all the roots of the rootList by time (only 1 time per root), we then compare all the insertion points (first points) of the roots and the closest for each root
+     * And we stack all the nodes in the same order while suppressing the roots (adjustment later in the code)
+     */
+    private void gottaMatchThemAll() {
+        for (Root root : rootList) {
+            root.firstNode.parent = null;
+        }
     }
 
     /**
@@ -3695,11 +3695,10 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         }
         else if (!rm.rootList.isEmpty()) {
             Root checkRoot = looking4Root(rm.rootList, root.getId());
-            rm.rootList.add(checkRoot);
             if (checkRoot == null) {
-                if (rootList.get(0).getOrder() == 1) rm.rootList.add(root);
-                else System.err.println("Problem with Root : " + root);
+                System.err.println("Problem with Root : " + root);
             }
+            rm.rootList.add(checkRoot);
         }
         else rm.rootList.add(root);
 

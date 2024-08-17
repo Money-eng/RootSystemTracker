@@ -1,5 +1,6 @@
 package io.github.rocsg.rsmlparser.RSML2D;
 
+import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.rsmlparser.*;
 
 import java.time.LocalDate;
@@ -11,7 +12,7 @@ import java.util.Objects;
 public class Root4Parser implements IRootParser {
     public static int numFunctions;
     public final LocalDateTime currentTime;
-    protected final String id;
+    protected String id;
     final String poAccession;
     final List<Function> functions;
     final List<Annotation> annotations;
@@ -21,6 +22,7 @@ public class Root4Parser implements IRootParser {
     public List<IRootParser> children;
     protected IRootParser parent;
     private Geometry geometry;
+    boolean goodMatch = false;
 
     public Root4Parser(String id, String label, String poAccession, Root4Parser parent, int order, LocalDateTime currentTime) {
         this.id = id;
@@ -130,6 +132,18 @@ public class Root4Parser implements IRootParser {
     }
 
     @Override
+    public void applyTransformToGeometry(ItkTransform transform, int i) {
+        if (geometry != null) {
+            geometry.applyTransform(transform, i);
+        }
+    }
+
+    @Override
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    @Override
     public List<Property> getProperties() {
         return properties;
     }
@@ -175,5 +189,26 @@ public class Root4Parser implements IRootParser {
             }
         }
         return childID.toString();
+    }
+
+    public void scaleGeometry(double scaleFactor) {
+        if (geometry != null) {
+            geometry.scale(scaleFactor);
+        }
+    }
+
+    // redefine equals
+    public boolean equals(Root4Parser root) {
+        if (!(this.id.equals(root.id))) return false;
+        if (!(this.label.equals(root.label))) return false;
+        if (!(this.poAccession.equals(root.poAccession))) return false;
+        if (!(this.properties.equals(root.properties))) return false;
+        if (!(this.functions.equals(root.functions))) return false;
+        if (!(this.annotations.equals(root.annotations))) return false;
+        if (this.order != root.order) return false;
+        if (!(this.children.equals(root.children))) return false;
+        if (!(this.parent.equals(root.parent))) return false;
+        if (!(this.geometry.equals(root.geometry))) return false;
+        return true;
     }
 }

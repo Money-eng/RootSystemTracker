@@ -1,11 +1,9 @@
 package io.github.rocsg.rsmlparser.RSML2D;
 
+import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.rsml.RootModel;
-import io.github.rocsg.rsmlparser.IRootModelParser;
-import io.github.rocsg.rsmlparser.Metadata;
-import io.github.rocsg.rsmlparser.Scene;
+import io.github.rocsg.rsmlparser.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +68,27 @@ public class RootModel4Parser implements IRootModelParser {
     }
 
     @Override
+    public List<IRootParser> getRoots() {
+        List<IRootParser> roots = new ArrayList<>();
+        for (Scene scene : scenes) {
+            for (Plant plant : scene.getPlants()) {
+                roots.addAll(plant.getFlatRoots());
+            }
+        }
+        return roots;
+    }
+
+    public List<IRootParser> getHierarchyRoots() {
+        List<IRootParser> roots = new ArrayList<>();
+        for (Scene scene : scenes) {
+            for (Plant plant : scene.getPlants()) {
+                roots.addAll(plant.getRoots());
+            }
+        }
+        return roots;
+    }
+
+    @Override
     public IRootModelParser createRootModel(IRootModelParser rootModel, float time) {
         if (rootModel instanceof RootModel4Parser) {
             return rootModel;
@@ -80,8 +99,27 @@ public class RootModel4Parser implements IRootModelParser {
     }
 
     @Override
-    public IRootModelParser createRootModels(Map<LocalDateTime, List<IRootModelParser>> rootModels, float scaleFactor) {
+    public IRootModelParser createRootModels(Map<LocalDateTime, IRootModelParser> rootModels, float scaleFactor) {
         return null;
     }
 
+    public void applyTransformToGeometry(ItkTransform transform, int timeIndex) {
+        for (Scene scene : scenes) {
+            for (Plant plant : scene.getPlants()) {
+                for (IRootParser root : plant.getFlatRoots()) {
+                    root.applyTransformToGeometry(transform, timeIndex);
+                }
+            }
+        }
+    }
+
+    public void scaleGeometry(double scaleFactor) {
+        for (Scene scene : this.scenes) {
+            for (Plant plant : scene.getPlants()) {
+                for (IRootParser root : plant.getFlatRoots()) {
+                    ((Root4Parser) root).scaleGeometry(scaleFactor);
+                }
+            }
+        }
+    }
 }

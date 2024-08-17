@@ -1,8 +1,8 @@
 package io.github.rocsg.rsmlparser;
 
 public class Point4Parser {
-    final double x;
-    final double y;
+    double x;
+    double y;
 
     public Point4Parser(String x, String y) {
         this.x = Double.parseDouble(x);

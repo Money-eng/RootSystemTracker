@@ -1439,12 +1439,12 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         if (tabPt.length < 2) return null;
 
         for (int l = 0; l < tabPt.length - 1; l++) {
-            if (tabPt[l].z > tabPt[l + 1].z) {
-                IJ.showMessage("You gave points that are not in chronological order. Abort.");
-                return null;
-            }
             if (tabPt[l] == null || tabPt[l + 1] == null) {
                 IJ.showMessage("You gave a null point. Abort.");
+                return null;
+            }
+            if (tabPt[l].z > tabPt[l + 1].z) {
+                IJ.showMessage("You gave points that are not in chronological order. Abort.");
                 return null;
             }
             if ((tabPt[l + 1].z - tabPt[l].z) > 1) {
@@ -1541,6 +1541,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
                 IJ.showMessage("You gave points that are not in chronological order. Abort.");
                 return null;
             }
+
             if (tabPt[l] == null || tabPt[l + 1] == null) {
                 IJ.showMessage("You gave a null point. Abort.");
                 return null;

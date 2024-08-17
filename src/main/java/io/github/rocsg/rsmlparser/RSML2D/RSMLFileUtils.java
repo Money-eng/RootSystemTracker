@@ -46,7 +46,7 @@ enum SelectionStrategy {
 public class RSMLFileUtils {
 
     // Backup selection strategy in case of a tie
-    public static SelectionStrategy backupStrategy = SelectionStrategy.LAST_VERSION;
+    public static SelectionStrategy backupStrategy = SelectionStrategy.FIRST_VERSION;
 
     /**
      * Checks the uniqueness of RSML files in a given folder and selects files based on the provided strategy.

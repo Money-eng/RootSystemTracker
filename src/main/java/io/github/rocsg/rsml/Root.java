@@ -3,6 +3,7 @@ package io.github.rocsg.rsml;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
+import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.rsmlparser.*;
 import mdbtools.libmdb.mem;
 
@@ -2544,6 +2545,25 @@ public class Root implements Comparable<Root>, IRootParser {
         return parentName;
     }
 
+    @Override
+    public void applyTransformToGeometry(ItkTransform transform, int timeAppearance) {
+        Node n = this.firstNode;
+        double[] coords = transform.transformPoint(new double[]{n.x, n.y, 0});
+        n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
+        n.y += (n.birthTime == timeAppearance ? (n.y - (float) coords[1]) : 0);
+        while (n.child != null) {
+            n = n.child;
+            coords = transform.transformPoint(new double[]{n.x, n.y, 0});
+            n.x += (n.birthTime == timeAppearance ? (n.x - (float) coords[0]) : 0);
+            n.y += (n.birthTime == timeAppearance ? (n.y - (float) coords[1]) : 0);
+        }
+    }
+
+    @Override
+    public void setId(String id) {
+        rootID = id;
+    }
+
     public double lenghtRootAtTimeT(float time) {
         Node n = this.firstNode;
         double length = 0;
@@ -2570,7 +2590,6 @@ public class Root implements Comparable<Root>, IRootParser {
         return nodes;
     }
 }
-
 
 class DistanceBTWRoots implements Comparator<Root> {
     @Override

@@ -7,9 +7,11 @@ import java.util.Map;
 
 public interface IRootModelParser {
 
+    public List<IRootParser> getRoots();
+
     IRootModelParser createRootModel(IRootModelParser rootModel, float time);
 
-    IRootModelParser createRootModels(Map<LocalDateTime, List<IRootModelParser>> rootModels, float scaleFactor);
+    IRootModelParser createRootModels(Map<LocalDateTime, IRootModelParser> rootModels, float scaleFactor);
 }
 
 

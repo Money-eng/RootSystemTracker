@@ -24,4 +24,19 @@ public class Polyline {
                 "points=" + points +
                 '}';
     }
+
+    // redefine equals method
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Polyline polyline = (Polyline) o;
+        // all points in the polyline must be equal
+        for (int i = 0; i < points.size(); i++) {
+            if (!points.get(i).equals(polyline.points.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

@@ -1,5 +1,7 @@
 package io.github.rocsg.rsmlparser;
 
+import io.github.rocsg.fijiyama.registration.ItkTransform;
+
 import java.util.List;
 
 // Define the interface
@@ -27,5 +29,9 @@ public interface IRootParser {
     String getParentId();
 
     String getParentLabel();
+
+    void applyTransformToGeometry(ItkTransform transform, int i);
+
+    void setId(String id);
 }
 
