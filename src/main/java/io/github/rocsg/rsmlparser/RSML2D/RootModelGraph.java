@@ -65,7 +65,7 @@ public class RootModelGraph {
      * @throws IOException If an I/O error occurs
      */
     public RootModelGraph() throws IOException {// Which box to work on
-        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\12_stack_cropped.tif");
+        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\B73_R12_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R12_01\\12_stack_cropped.tif");
     }
 
     ///////////////////////////////// EXPERIMENAL CODE !!! /////////////////////////////////

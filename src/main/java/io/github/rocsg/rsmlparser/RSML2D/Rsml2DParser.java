@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  */
 public class Rsml2DParser {
 
-    public static boolean anonymize = true;
+    public static boolean anonymize = false;
     public static final double probaOfAno = 1; // Probability of anonymization
 
     // Formatter pour LocalDateTime (dates avec heures)
