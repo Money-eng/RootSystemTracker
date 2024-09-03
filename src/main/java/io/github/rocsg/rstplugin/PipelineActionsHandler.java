@@ -37,6 +37,8 @@ import java.util.*;
 import static io.github.rocsg.rstplugin.PipelineParamHandler.configurePipelineParams;
 
 
+// RECOMMANDATION: KEEP THE ORIGINAL CODE OF RST, NOT THE ONE BELOW THAT IS  EXPERIMENTAL
+
 public class PipelineActionsHandler {
     // Flag indicating the pipeline has finished processing
     public static final int flagFinished = 8;
@@ -433,14 +435,7 @@ public class PipelineActionsHandler {
 
         //Size conversion and saving. No bitdepth conversion to handle here, supposing that everything is 8-bit there
         stack = VitimageUtils.resize(stack, (int) (stack.getWidth() / PipelineParamHandler.subsamplingFactor), (int) (stack.getHeight() / PipelineParamHandler.subsamplingFactor), stack.getStackSize());
-        
-        boolean makeHistoMatch = true;
-        // if makeHistoMatch, use bleach correction and histogram matching 
-        if (makeHistoMatch) {
-            //( Image › Adjust › Bleach Correction)
-            IJ.run(stack, "Bleach Correction", "Histogram Matching");
-        }
-        
+
         IJ.saveAsTiff(stack, new File(outputDataDir, "11_stack.tif").getAbsolutePath());
         return true;
     }
@@ -459,6 +454,7 @@ public class PipelineActionsHandler {
      */
     public static boolean registerSerie(int indexImg, String outputDataDir, PipelineParamHandler pph) {
         ImagePlus imgInit = IJ.openImage(new File(outputDataDir, "11_stack.tif").getAbsolutePath());
+        IJ.run(imgInit, "Enhance Contrast", "saturated=0.35");
         int N = imgInit.getStackSize();
         if (imgInit.getBitDepth() == 24) {
             // converting to 32, 64, 16 or 8 bits (the closest to the original bit depth)
@@ -474,8 +470,9 @@ public class PipelineActionsHandler {
         IJ.run(imgOut, "32-bit", "");
         //Create mask
         ImagePlus mask = new Duplicator().run(imgInit, 1, 1, 1, 1, 1, 1);
-        mask = VitimageUtils.nullImage(mask);
-        mask = VitimageUtils.drawRectangleInImage(mask, 0, 0, mask.getWidth() - 1, mask.getHeight() - 1, 255);
+        /*mask = VitimageUtils.nullImage(mask);
+        mask = VitimageUtils.drawRectangleInImage(mask, 0, 0, mask.getWidth() - 1, mask.getHeight() - 1, 255);*/
+        mask =new ImagePlus("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\20_mask_for_registration.tif");
         // invert the mask
         IJ.saveAsTiff(mask, new File(outputDataDir, "20_mask_for_registration.tif").getAbsolutePath());
 
@@ -495,7 +492,7 @@ public class PipelineActionsHandler {
 
         //First step : daisy-chain rigid registration
         Timer t = new Timer();
-        t.log("Starting registration");
+        /*t.log("Starting registration");
         for (int n = 0; (n < N - 1); n++) {
             t.log("n=" + n);
             ItkTransform trRoot = null;
@@ -537,7 +534,7 @@ public class PipelineActionsHandler {
 
         ImagePlus result1 = VitimageUtils.slicesToStack(tabImg);
         result1.setTitle("step 1");
-        IJ.saveAsTiff(result1, new File(outputDataDir, "21_midterm_registration.tif").getAbsolutePath());
+        IJ.saveAsTiff(result1, new File(outputDataDir, "21_midterm_registration.tif").getAbsolutePath());*/
 
 
         // save transform in .txt file i n a folder (Transforms_1)
@@ -583,7 +580,7 @@ public class PipelineActionsHandler {
             bm2.minBlockVariance = 10;
             bm2.minBlockScore = 0.10;
             bm2.displayR2 = true;
-            boolean viewRegistrations = true;
+            boolean viewRegistrations = false;
             if (viewRegistrations) {
                 bm2.displayRegistration = 2;
                 bm2.adjustZoomFactor(512.0 / tabImg[n1].getWidth());

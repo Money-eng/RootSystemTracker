@@ -6,6 +6,7 @@ package io.github.rocsg.rsml;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 
 import java.awt.geom.Point2D;
+import java.util.List;
 
 // TODO: Auto-generated Javadoc
 /**
@@ -191,6 +192,19 @@ public class Node {
         if (node1.bCross23 != node2.bCross23) return false;
         if (node1.pCross01 != node2.pCross01) return false;
         return node1.pCross23 == node2.pCross23;
+    }
+
+    public static double distanceFrom(List<Node> listNode, Node node) {
+        double distance = 0;
+        for (int i = 0; i < listNode.size(); i++) {
+            if (listNode.get(i).equals(node)) {
+                return distance;
+            }
+            if (i < listNode.size() - 1) {
+                distance += distanceBetween(listNode.get(i), listNode.get(i + 1));
+            }
+        }
+        return Double.MAX_VALUE;
     }
 
     @Override

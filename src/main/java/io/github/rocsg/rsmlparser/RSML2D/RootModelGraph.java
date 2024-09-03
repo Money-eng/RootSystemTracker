@@ -5,13 +5,15 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.CurveFitter;
 import ij.measure.SplineFitter;
+import ij.plugin.RGBStackMerge;
 import ij.process.ImageProcessor;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.rsml.Node;
 import io.github.rocsg.rsml.Root;
 import io.github.rocsg.rsml.RootModel;
-import io.github.rocsg.rsmlparser.*;
+import io.github.rocsg.rsmlparser.IRootModelParser;
+import io.github.rocsg.rsmlparser.IRootParser;
 import io.github.rocsg.rsmlparser.RSML2DplusT.RSMLWriter2DT;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
 import math3d.Point3d;
@@ -33,7 +35,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,33 +44,59 @@ import java.util.stream.IntStream;
 import static io.github.rocsg.rsmlparser.RSML2D.Rsml2DParser.*;
 import static io.github.rocsg.rstplugin.PipelineParamHandler.configurePipelineParams;
 
+/**
+ * The RootModelGraph class represents a graph of root models.
+ * It provides methods to read RSML files, apply transformations, and visualize the root models.
+ */
 public class RootModelGraph {
 
-    final static int STANDART_DIST = 1;
-    final List<RootModel> rootModels;
-    public List<org.graphstream.graph.Graph> graphs;
-    PipelineParamHandler pph;
-    ImagePlus image;
-    List<ItkTransform> transforms;
-    boolean removed = false;
 
-    public RootModelGraph() throws IOException {
-        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\\\B73_R07_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R07_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R07_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R07_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R07_01\\12_stack_cropped.tif");
-    }
+    final List<RootModel> rootModels; // List of root models
+    public List<org.graphstream.graph.Graph> graphs; // List of graphs
+    PipelineParamHandler pph; // Pipeline parameter handler
+    ImagePlus image; // ImagePlus object representing the image
+    List<ItkTransform> transforms; // List of ITK transforms
+    boolean removed = false; // Flag indicating if any dates were removed TODO
 
     /**
-     * Constructor of the RootModelGraph class
-     * The RootModelGraph is created by reading the RSMLs from the specified path
-     * The RootModels are extracted from the RSMLs
-     * The RootModels are then converted to JGraphT Graphs
-     * The JGraphT Graphs are then converted to ImagePlus images
-     * The images are then resized using the resampling factor specified in the PipelineParamHandler
-     * The transforms are read from the specified path
+     * Default constructor for the RootModelGraph class.
+     * Initializes the RootModelGraph with default paths.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    public RootModelGraph() throws IOException {// Which box to work on
+        this("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Original_Data\\\\B73_R04_01\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\Transforms_2\\", "D:\\loaiu\\MAM5\\Stage\\data\\TestParser\\Output\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Inventory\\", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\11_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\22_registered_stack.tif", "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\12_stack_cropped.tif");
+    }
+
+    ///////////////////////////////// EXPERIMENAL CODE !!! /////////////////////////////////
+
+//    Pipeline :
+//    we get the params of the image (subsampling factor and crop position / distance)
+//    We get the RSML files from the path2RSMLs in a map
+//    we get the registered images
+//    correct the missing dates if there are (troublesome)
+//     we get the transforms of the image and apply them to the parsers
+//    We match every Root if needed => modification of the identifier of each root (String)
+        //  -> BEWARE THE VARIABLE OF ANONIMIZATION IN THE RSML2DParser CLASS
+//    We create an object RootModel from the parsers (2D+t) : the roots nodes are stacked on top of each other
+//     We ajust the RootModel : interpolation with time and alignment
+
+    /**
+     * Constructor of the RootModelGraph class.
+     * The RootModelGraph is created by reading the RSMLs from the specified path.
+     * The RootModels are extracted from the RSMLs.
+     * The RootModels are then converted to JGraphT Graphs.
+     * The JGraphT Graphs are then converted to ImagePlus images.
+     * The images are then resized using the resampling factor specified in the PipelineParamHandler.
+     * The transforms are read from the specified path.
      *
      * @param path2RSMLs      The path to the RSMLs
      * @param transformerPath The path to the transforms
      * @param inputPathPPH    The path to the input PipelineParamHandler
      * @param outputPathPPH   The path to the output PipelineParamHandler
+     * @param originalScaledImagePath The path to the original scaled image
+     * @param registeredImagePath The path to the registered image
+     * @param croppedImage The path to the cropped image
      * @throws IOException If an I/O error occurs
      */
     public RootModelGraph(String path2RSMLs, String transformerPath, String inputPathPPH, String outputPathPPH, String originalScaledImagePath, String registeredImagePath, String croppedImage) throws IOException {
@@ -88,9 +115,9 @@ public class RootModelGraph {
         configMap.put("marginRegisterUp", "248");
         configMap.put("marginRegisterDown", "5");
 
-        // take and replace the above variables with the ones presentin a csv file
+        // Take and replace the above variables with the ones present in a CSV file
         String csvPath = "D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\" + "InfoSerieRootSystemTracker.csv";
-        // read the csv file
+        // Read the CSV file
         try {
             List<String> lines = Files.readAllLines(Paths.get(csvPath));
             for (String line : lines) {
@@ -108,13 +135,13 @@ public class RootModelGraph {
         pph = new PipelineParamHandler(inputPathPPH, outputPathPPH);
         configurePipelineParams(configMap);
 
-        List<LocalDateTime> removedDates = new ArrayList<>(); // DANGER
+        List<LocalDateTime> removedDates = new ArrayList<>(); // DANGER - hard to manage
         Map<LocalDateTime, IRootModelParser> result = parseRsmlFiles(path2RSMLs, removedDates);
         //List<LocalDateTime> datesFromImages = new ArrayList<>();
 
 //        /*****DEBUG*****/
 //        ConcurrentHashMap<String, LocalDateTime> fileDates = new ConcurrentHashMap<>();
-//        // get the date of the rsml files
+//        // Get the date of the RSML files
 //        try {
 //            Path path2Images = Paths.get(path2RSMLs);
 //            Files.list(path2Images)
@@ -127,7 +154,7 @@ public class RootModelGraph {
 //            throw new RuntimeException(e);
 //        }
 //
-//        // from fileDates, get the dates of the images
+//        // From fileDates, get the dates of the images
 //        fileDates.forEach((path, date) -> {
 //            if (!datesFromImages.contains(date)) datesFromImages.add(date);
 //        });
@@ -135,11 +162,11 @@ public class RootModelGraph {
 //        HashSet<LocalDateTime> totalDates = new HashSet<>(result.keySet());
 //        totalDates.addAll(removedDates);
 //        totalDates.addAll(datesFromImages);
-//        // sort the dates in ascending order
+//        // Sort the dates in ascending order
 //        List<LocalDateTime> sortedDates = new ArrayList<>(totalDates);
 //        sortedDates.sort(LocalDateTime::compareTo);
 //
-//        // adding the dates to result
+//        // Adding the dates to result
 //        sortedDates.forEach(date -> {
 //            if (!result.containsKey(date)) {
 //                result.put(date, null);
@@ -153,18 +180,29 @@ public class RootModelGraph {
 
 //        RootModel rms = new RootModel();
 //        rms = (RootModel) rms.createRootModels(result, (float) PipelineParamHandler.subsamplingFactor);
-        ImagePlus refImage = new ImagePlus(registeredImagePath);
-        // if removedDatesIndex is not empty, remove the corresponding slices from the image
+        ImagePlus refImage = new ImagePlus(registeredImagePath); // Realigned and cropped image
+
+        // If removedDatesIndex is not empty, remove the corresponding slices from the image
         image = refImage;
-        // calibrate image
+        // Calibrate image
         IJ.run(image, "Enhance Contrast", "saturated=0.35");
         // Read all the transforms and apply them
-        //ImagePlus imgInitSize = new ImagePlus(originalScaledImagePath);
+        ImagePlus imgInitSize = new ImagePlus(originalScaledImagePath); // Base image, raf
+
         //displayOnImage(createGraphFromRM(rms), imgInitSize, true).show();
 
-//        RootModel basicRM = new RootModel();
-//        basicRM = (RootModel) basicRM.createRootModels(result, (float)1);
-//        displayOnImage(createGraphFromRM(basicRM), imgInitSize, true).show();
+        // Remove the image of index removedDatesIndex from the image
+        if (!removedDates.isEmpty()) {
+            refImage.getStack().deleteSlice(1);
+            imgInitSize.getStack().deleteSlice(1);
+            refImage.getStack().deleteSlice(1);
+            imgInitSize.getStack().deleteSlice(1);
+            removed = true;
+        }
+
+        //RootModel basicRM = new RootModel();
+        //basicRM = (RootModel) basicRM.createRootModels(result, (float) 4);
+        //displayOnImage(createGraphFromRM(basicRM), imgInitSize, true).show();
 //        readAndApplyTransforms(transformerPath, rms);
 //
 //        displayOnImage(createGraphFromRM(rms), refImage, true).show();
@@ -174,20 +212,13 @@ public class RootModelGraph {
 //        ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage);
 //        img3.show();
 
-        if (result.keySet().size() < refImage.getStackSize()) {
-            // TODO generalize
-            while (refImage.getStackSize() > result.keySet().size()) {
-                refImage.getStack().deleteSlice(1);
-            }
-            removed = true;
-        }
+
 
         readAndApplyTransforms4Parser(transformerPath, result);
         Map<String, List<Boolean>> rootPresenceMap = getRootPresenceMap(result);
         Map<String, List<String>> classifyRoots = classifyRoots(rootPresenceMap);
-
-        result = gottaClassifyThemAllByCluster(result, rootPresenceMap, classifyRoots);
-        //result = gottaClassifyThemAll(result, rootPresenceMap, classifyRoots);
+        //result = gottaClassifyThemAllByCluster(result, rootPresenceMap, classifyRoots);
+        result = gottaClassifyThemAll(result, rootPresenceMap, classifyRoots);
 
 
         Rsml2DParser.anonymize = false;
@@ -197,7 +228,6 @@ public class RootModelGraph {
         compareRoots(result, result4Compare);
 
 
-
         RootModel rms = new RootModel();
         rms = (RootModel) rms.createRootModels(result4Compare, 1.0F);
         ImagePlus refImage2 = refImage.duplicate();
@@ -205,12 +235,15 @@ public class RootModelGraph {
         rms.adjustRootModel(refImage2);
         displayOnImage(createGraphFromRM(rms), refImage2).show();
 
-        // save RootModel before and after adjustment
+        ImagePlus finalImage = projectRsmlOnImage(rms, refImage, 1, refImage.getStackSize(), VitimageUtils.stackToSlices(refImage));
+        finalImage.show();
+
+        // Save RootModel before and after adjustment
         String path2NewRSML = path2RSMLs + "\\NewRSMLs\\" + LocalDate.now() + ".rsml";
-        // create folder if not exists
+        // Create folder if not exists
         Path path = Paths.get(path2NewRSML).getParent();
         if (!Files.exists(path)) Files.createDirectories(path);
-        rms.writeRSML3D(new File(path2NewRSML).getAbsolutePath().replace("\\", "/"), "", true, false);
+        //rms.writeRSML3D(new File(path2NewRSML).getAbsolutePath().replace("\\", "/"), "", true, false);
 
         RSMLWriter2DT.writeRSML(rms, path2NewRSML);
 
@@ -230,9 +263,7 @@ public class RootModelGraph {
         //Map<Root, List<Node>> insertionPoints = rms.getInsertionPoints();
         //ImagePlus img3 = displayOnImage(createGraphFromRM(rms), refImage, insertionPoints);
         //img3.show();
-        // stop execution but not the running programs
-
-
+        // Stop execution but not the running programs
 
         /*interpolatePointsSplineFitter(rms, displayOnImage(createGraphFromRM(rms), refImage, insertionPoints));
 
@@ -266,52 +297,47 @@ public class RootModelGraph {
     }
 
     /**
-     * Function to create a display of a GraphStream graph as an ImagePlus image
+     * Function to parse the RSML files using the RsmlParser class.
      *
-     * @param g                 The graph made of the Nodes and Edges
-     * @param width             The width of the image
-     * @param height            The height of the image
-     * @param subsamplingFactor The subsampling factor
-     * @param numSlices         The number of slices
-     * @return The ImagePlus image of the graph
+     * @param path2RSMLs The path to the RSMLs.
+     * @param removedDates A list to store the dates of removed RSML files.
+     * @return A Map with the date as key and the list of IRootModelParser as value.
      */
-    public static ImagePlus toDisplayTemporalGraph(org.graphstream.graph.Graph g, int width, int height, float subsamplingFactor, int numSlices) {
-        ImageStack stack = new ImageStack();
-        for (int i = 1; i <= numSlices; i++) {
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2d = image.createGraphics();
-
-            for (org.graphstream.graph.Node node : g) {
-                Object[] xyz = node.getAttribute("xyz");
-                double x = (float) xyz[0];
-                double y = (float) xyz[1];
-                double t = (float) xyz[2];
-                if (t == i) g2d.fill(new Ellipse2D.Double(x - 2, y - 2, 4, 4));
-            }
-
-            for (org.graphstream.graph.Edge edge : g.getEdgeSet()) {
-                Object[] xyz0 = edge.getNode0().getAttribute("xyz");
-                Object[] xyz1 = edge.getNode1().getAttribute("xyz");
-                double x1 = (float) xyz0[0];
-                double y1 = (float) xyz0[1];
-                double t1 = (float) xyz0[2];
-                double x2 = (float) xyz1[0];
-                double y2 = (float) xyz1[1];
-                double t2 = (float) xyz1[2];
-                if (t1 == i && t2 == i) g2d.draw(new Line2D.Double(x1, y1, x2, y2));
-            }
-
-            g2d.dispose();
-
-            stack.addSlice(new ImagePlus("Graph", image).getProcessor());
+    private Map<LocalDateTime, IRootModelParser> parseRsmlFiles(String path2RSMLs, List<LocalDateTime> removedDates) {
+        Rsml2DParser rsml2DParser = new Rsml2DParser(path2RSMLs, removedDates);
+        Map<LocalDateTime, List<IRootModelParser>> result = Rsml2DParser.getRSMLsInfos(Paths.get(rsml2DParser.path2RSMLs));
+        removedDates.addAll(Rsml2DParser.removedDates);
+        result.forEach((date, rootModel4Parsers) -> {
+            System.out.println("Date : " + date);
+            rootModel4Parsers.forEach(System.out::println);
+        });
+        TreeMap<LocalDateTime, IRootModelParser> res = new TreeMap<>();
+        for (LocalDateTime dateTime : result.keySet()) {
+            assert result.get(dateTime).size() == 1;
+            res.putIfAbsent(dateTime, result.get(dateTime).get(0));
         }
-        return new ImagePlus("Root Model Graph", stack);
+        return res;
     }
 
+    /**
+     * Displays the given graph on the provided image.
+     *
+     * @param g The graph to be displayed.
+     * @param img The image on which the graph will be displayed.
+     * @return An ImagePlus object with the graph displayed on it.
+     */
     public static ImagePlus displayOnImage(org.graphstream.graph.Graph g, ImagePlus img) {
         return displayOnImage(g, img, false);
     }
 
+    /**
+     * Displays the given graph on the provided image with an option to stack.
+     *
+     * @param g The graph to be displayed.
+     * @param img The image on which the graph will be displayed.
+     * @param justStack A boolean indicating whether to stack the images.
+     * @return An ImagePlus object with the graph displayed on it.
+     */
     public static ImagePlus displayOnImage(org.graphstream.graph.Graph g, ImagePlus img, boolean justStack) {
         // convert to rgb image
         ImageStack rgbStack = new ImageStack(img.getWidth(), img.getHeight());
@@ -392,66 +418,12 @@ public class RootModelGraph {
         return new ImagePlus("Root Model Graph", stack);
     }
 
-    public static ImagePlus displayOnImage(org.graphstream.graph.Graph g, ImagePlus img, Object o) {
-        // if o is a Map<Root, List<Node>>
-        if (o instanceof Map) {
-            Map<Root, List<Node>> insertionPoints = (Map<Root, List<Node>>) o;
-            // get all nodes position in a list
-            List<Point3d> nodes = new ArrayList<>();
-            for (Root r : insertionPoints.keySet()) {
-                for (Node n : insertionPoints.get(r)) {
-                    nodes.add(new Point3d(n.x, n.y, n.birthTime));
-                }
-            }
-            // convert to rgb image
-            ImageStack rgbStack = new ImageStack(img.getWidth(), img.getHeight());
-            int numSlices = img.getNSlices();
-            for (int i = 1; i <= numSlices; i++) {
-                rgbStack.addSlice(img.getStack().getProcessor(i).convertToRGB());
-            }
-            ImagePlus imag = new ImagePlus("RGB stack", rgbStack);
-            ImageStack stack = imag.getImageStack();
-
-            int numEdges = g.getEdgeSet().size();
-            for (int i = 1; i <= numSlices; i++) {
-                BufferedImage image = stack.getProcessor(i).getBufferedImage();
-                Graphics2D g2d = image.createGraphics();
-                for (org.graphstream.graph.Node node : g) {
-                    Object[] xyz = node.getAttribute("xyz?");
-                    double x = (float) xyz[0];
-                    double y = (float) xyz[1];
-                    double t = (float) xyz[2];
-                    boolean isInsertionPoint = (boolean) xyz[3];
-                    if ((t == i) && (isInsertionPoint)) {
-                        g2d.setColor(Color.GREEN);
-                        g2d.fill(new Ellipse2D.Double(x - 2, y - 2, 4, 4));
-                    } else if (t == i) {
-                        g2d.setColor(Color.RED);
-                        g2d.fill(new Ellipse2D.Double(x - 2, y - 2, 4, 4));
-                    }
-                }
-
-                for (int j = 0; j < numEdges; j++) {
-                    org.graphstream.graph.Edge edge = g.getEdge(j);
-                    Object[] xyz0 = edge.getNode0().getAttribute("xyz?");
-                    Object[] xyz1 = edge.getNode1().getAttribute("xyz?");
-                    double x1 = (float) xyz0[0];
-                    double y1 = (float) xyz0[1];
-                    double t1 = (float) xyz0[2];
-                    double x2 = (float) xyz1[0];
-                    double y2 = (float) xyz1[1];
-                    double t2 = (float) xyz1[2];
-                    if (t1 == i && t2 == i) g2d.draw(new Line2D.Double(x1, y1, x2, y2));
-                }
-
-                g2d.dispose();
-                stack.setProcessor(new ImagePlus("Graph", image).getProcessor(), i);
-            }
-            return new ImagePlus("Root Model Graph", stack);
-        }
-        return displayOnImage(g, img);
-    }
-
+    /**
+     * Creates a graph from the given RootModel.
+     *
+     * @param rootModel The RootModel object containing the RSML data.
+     * @return A GraphStream graph representing the RootModel.
+     */
     public static org.graphstream.graph.Graph createGraphFromRM(RootModel rootModel) {
         org.graphstream.graph.Graph g = new SingleGraph("RootModelGraph");
 
@@ -475,7 +447,7 @@ public class RootModelGraph {
                     String targetId = "Node_" + firstNode.child;
                     String edgeId = sourceId + "_" + targetId;
                     if (g.getEdge(edgeId) == null) {
-                        g.addEdge(edgeId, sourceId, targetId);
+                        //g.addEdge(edgeId, sourceId, targetId); // TODO why ? problème récent
                     }
                 }
                 firstNode = firstNode.child;
@@ -486,44 +458,68 @@ public class RootModelGraph {
     }
 
     /**
-     * Function to parse the RSML files using the RsmlParser class
+     * This static method projects the Root System Markup Language (RSML) model onto an image.
+     * It creates a grayscale image for each time point in the model, then merges this with the registered stack image.
+     * The resulting images are combined into a stack and returned.
      *
-     * @param path2RSMLs The path to the RSMLs
-     * @return A Map with the date as key and the list of IRootModelParser as value
+     * @param rm          the RootModel object which contains the RSML data.
+     * @param imgInitSize the initial size of the images.
+     * @param zoomFactor  the zoom factor to apply.
+     * @param Nt          the number of time points.
+     * @param tabReg      an array of registered images to merge with the RSML projections.
+     * @return an ImagePlus object which is a stack of images with the RSML model projected onto them.
      */
-    private Map<LocalDateTime, IRootModelParser> parseRsmlFiles(String path2RSMLs, List<LocalDateTime> removedDates) {
-        Rsml2DParser rsml2DParser = new Rsml2DParser(path2RSMLs, removedDates);
-        Map<LocalDateTime, List<IRootModelParser>> result = Rsml2DParser.getRSMLsInfos(Paths.get(rsml2DParser.path2RSMLs));
-        result.forEach((date, rootModel4Parsers) -> {
-            System.out.println("Date : " + date);
-            rootModel4Parsers.forEach(System.out::println);
-        });
-        TreeMap<LocalDateTime, IRootModelParser> res = new TreeMap<>();
-        for (LocalDateTime dateTime : result.keySet()) {
-            assert result.get(dateTime).size() == 1;
-            res.putIfAbsent(dateTime, result.get(dateTime).get(0));
+    public static ImagePlus projectRsmlOnImage(RootModel rm, ImagePlus imgInitSize, int zoomFactor, int Nt, ImagePlus[] tabReg) {
+        // Start a timer to measure the execution time of this method
+        Timer t = new Timer();
+
+        // Create an array to store processed images
+        ImagePlus[] processedImages = new ImagePlus[Nt];
+
+        try {
+            // Loop over each time point in the model
+            IntStream.range(0, Nt).parallel().forEach(i -> {
+                // Create a grayscale image of the RSML model at this time point
+                ImagePlus imgRSML = rm.createColorfulImageWithTime(imgInitSize, zoomFactor, false, (i + 1), true,
+                        new boolean[]{true, true, true, false, true}, new double[]{2, 2});
+
+                // Set the display range of the image
+                imgRSML.setDisplayRange(0, Nt + 3);
+
+                // Merge the grayscale image with the registered stack image
+                processedImages[i] = RGBStackMerge.mergeChannels(new ImagePlus[]{tabReg[i], imgRSML}, true);
+                // Convert the image to RGB color
+                IJ.run(processedImages[i], "RGB Color", "");
+            });
+        } catch (Exception e) {
+            // Loop over each time point in the model
+            IntStream.range(0, Nt).forEach(i -> {
+                // Create a grayscale image of the RSML model at this time point
+                ImagePlus imgRSML = rm.createGrayScaleImageWithTime(imgInitSize, zoomFactor, false, (i + 1), true,
+                        new boolean[]{true, true, true, false, true}, new double[]{2, 2});
+
+                // Set the display range of the image
+                imgRSML.setDisplayRange(0, Nt + 3);
+
+                // Merge the grayscale image with the registered stack image
+                processedImages[i] = RGBStackMerge.mergeChannels(new ImagePlus[]{tabReg[i], imgRSML}, true);
+                // Convert the image to RGB color
+                IJ.run(processedImages[i], "RGB Color", "");
+            });
         }
-        return res;
+
+        // Print the execution time of this method
+        System.out.println("Updating root model took : ");
+
+        // Return the image
+        return VitimageUtils.slicesToStack(processedImages);
     }
 
     /**
-     * Function to crop and resize the image using the specified parameters
+     * Function to read and apply the transforms to the RootModel.
      *
-     * @param originalScaledImagePath The path to the original scaled image
-     * @param subsamplingFactor       The subsampling factor
-     * @param size                    The size of the image
-     * @return The cropped and resized ImagePlus image
-     */
-    private ImagePlus cropAndResizeImage(String originalScaledImagePath, double subsamplingFactor, int size) {
-        return VitimageUtils.cropImage(new ImagePlus(originalScaledImagePath), (int) (1400.0 / subsamplingFactor), (int) (350.0 / subsamplingFactor), 0, (int) ((10620.0 - 1400.0) / subsamplingFactor), (int) ((8783.0 - 350.0) / subsamplingFactor), size);
-    }
-
-
-    /**
-     * Function to read and apply the transforms to the RootModel
-     *
-     * @param transformerPath The path to the transforms
-     * @param rms             The RootModel
+     * @param transformerPath The path to the transforms.
+     * @param rms             The RootModel.
      */
     private void readAndApplyTransforms(String transformerPath, RootModel rms) {
         // Define these as class variables if the method is called multiple times
@@ -597,6 +593,12 @@ public class RootModelGraph {
 
     }
 
+    /**
+     * Reads and applies transforms to the RootModelParser objects.
+     *
+     * @param transformerPath The path to the transforms.
+     * @param resultOfParsing A map of parsed RSML files with their corresponding dates.
+     */
     private void readAndApplyTransforms4Parser(String transformerPath, Map<LocalDateTime, IRootModelParser> resultOfParsing) {
         double scaleFactor = PipelineParamHandler.subsamplingFactor;
         for (IRootModelParser rootModel : resultOfParsing.values()) {
@@ -681,207 +683,12 @@ public class RootModelGraph {
         ((RootModel4Parser) resultOfParsing.get(resultOfParsing.keySet().toArray()[resultOfParsing.keySet().size() - 1])).applyTransformToGeometry(linearTransform, 0);
     }
 
-    private void applySingleTransform(ItkTransform transform, RootModel rms) {
-        for (Root root : rms.rootList) {
-            Node firstNode = root.firstNode;
-            while (firstNode != null) {
-                Point3d point = new Point3d(firstNode.x, firstNode.y, firstNode.birthTime);
-                point = transform.transformPoint(point);
-                firstNode.x = (float) point.x;
-                firstNode.y = (float) point.y;
-                firstNode = firstNode.child;
-            }
-        }
-    }
-
-    // lookup for all the points of a root at time t
-    private void showBlankWithPointOnRoot(List<Root> r, ImagePlus forSize) {
-        ImagePlus blank = IJ.createImage("Blank", "RGB white", forSize.getWidth(), forSize.getHeight(), 1);
-        List<DoublePoint> points;
-        int birthTime = 0;
-        int lastTime = forSize.getNSlices();
-
-        for (Root root : r) {
-            points = new ArrayList<>();
-            Node firstnode = root.firstNode;
-            birthTime = (int) firstnode.birthTime;
-            // add the points to the blank image
-            while (firstnode != null) {
-                points.add(new DoublePoint(new double[]{firstnode.x, firstnode.y, firstnode.birthTime}));
-                System.out.println("x : " + firstnode.x + " y : " + firstnode.y + " t : " + firstnode.birthTime);
-                lastTime = (int) firstnode.birthTime;
-                firstnode = firstnode.child;
-            }
-
-            // Perform clustering
-            int k = root.getNodesList().size() / (lastTime - birthTime + 1);
-            KMeansPlusPlusClusterer<DoublePoint> clusterer = new KMeansPlusPlusClusterer<>(k);
-            List<CentroidCluster<DoublePoint>> clusters = clusterer.cluster(points);
-
-            ImageProcessor ip = blank.getProcessor();
-            for (int clusterIndex = 0; clusterIndex < clusters.size(); clusterIndex++) {
-                Cluster<DoublePoint> cluster = clusters.get(clusterIndex);
-                // random color
-                ip.setColor(new Color((int) (Math.random() * 0x1000000)));
-                for (DoublePoint point : cluster.getPoints()) {
-                    //ip.drawDot((int) point.getPoint()[0], (int) point.getPoint()[1]);
-                    ip.drawDot((int) clusters.get(clusterIndex).getCenter().getPoint()[0], (int) clusters.get(clusterIndex).getCenter().getPoint()[1]);
-                    //ip.drawString(String.valueOf(clusters.get(clusterIndex).getCenter().getPoint()[2]), (int) clusters.get(clusterIndex).getCenter().getPoint()[0], (int) clusters.get(clusterIndex).getCenter().getPoint()[1]);
-                    if (cluster.getPoints().get(0) == point) {
-                        //ip.drawString(String.valueOf(point.getPoint()[2]), (int) point.getPoint()[0], (int) point.getPoint()[1]);
-                        System.out.println("Cluster " + clusterIndex + " : " + point.getPoint()[0] + " " + point.getPoint()[1] + " " + point.getPoint()[2]);
-                    }
-                    if (point.getPoint()[2] < clusters.get(clusterIndex).getCenter().getPoint()[2]) {
-                        // same but smaller string on image
-                        //ip.drawString(String.valueOf(point.getPoint()[2]), (int) point.getPoint()[0], (int) point.getPoint()[1]);
-                        System.out.println("Missclassified ? x : " + point.getPoint()[0] + " y : " + point.getPoint()[1] + " t : " + point.getPoint()[2]);
-                    }
-                }
-            }
-        }
-        blank.show();
-
-    }
-
-    // Getting better points for interpolation
-    public void getBetterPoints(RootModel rms) {
-        Map<Root, List<List<Point3d>>> newPoints = new HashMap<>();
-        Map<Root, List<Node>> insertionPoints = rms.getInsertionPoints();
-        for (Root root : insertionPoints.keySet()) {
-            newPoints.putIfAbsent(root, new ArrayList<>());
-            for (Node node : insertionPoints.get(root)) {
-                Node n = insertionPoints.get(root).get(insertionPoints.get(root).indexOf(node));
-                newPoints.get(root).add(new ArrayList<>());
-                newPoints.get(root).get(newPoints.get(root).size() - 1).add(new Point3d(n.x, n.y, n.birthTime));
-                Node nChild = n.child;
-                while ((nChild != null) && (nChild.birthTime == n.birthTime)) {
-                    // there is a line between n and nChild, we want to get the points on this line
-                    double x1 = n.x;
-                    double y1 = n.y;
-                    double x2 = nChild.x;
-                    double y2 = nChild.y;
-                    double dx = x2 - x1;
-                    double dy = y2 - y1;
-                    double d = Math.sqrt(dx * dx + dy * dy);
-                    double step = 1;
-                    while (step < d) {
-                        double x = x1 + step * dx / d;
-                        double y = y1 + step * dy / d;
-                        newPoints.get(root).get(newPoints.get(root).size() - 1).add(new Point3d(x, y, n.birthTime));
-                        step += STANDART_DIST;
-                    }
-                    n = nChild;
-                    nChild = nChild.child;
-                }
-            }
-        }
-    }
-
     /**
-     * Function to interpolate the points using the SplineFitter
-     * Then display the interpolated points on the image
+     * Compares the roots between two sets of root models and prints the comparison results.
      *
-     * @param rms The RootModel (source of the points)
-     * @param img The ImagePlus image (destination of the points)
+     * @param result A map containing the root models to be compared, with the date as the key.
+     * @param result4Compare A map containing the ground truth root models, with the date as the key.
      */
-    private void interpolatePoints(RootModel rms, ImagePlus img) {
-        /*Map<Root, List<Node>> insertionPts = rms.getInsertionPoints();
-        insertionPts.keySet().parallelStream().forEach(root -> {
-            List<Node> nodes = insertionPts.get(root);
-            nodes.forEach(node -> {
-                // node is an insertion point
-                // get its position and the positions of its childs that appeared at the same time
-                if (root.order == 1)
-                {
-                    System.out.println("Root order 1");
-                }
-                List<Node> node2Interpolate = new ArrayList<>();
-                node2Interpolate.add(node);
-                while (node.child != null && node.child.birthTime == node.birthTime) {
-                    node2Interpolate.add(node.child);
-                    node = node.child;
-                }
-                try {
-                    // find the best polynomial to interpolate the points
-                    if (node2Interpolate.size() > 1) {
-                        double[] x = new double[node2Interpolate.size()];
-                        double[] y = new double[node2Interpolate.size()];
-                        IntStream.range(0, node2Interpolate.size()).forEach(i -> {
-                            x[i] = node2Interpolate.get(i).x;
-                            y[i] = node2Interpolate.get(i).y;
-                        });
-
-                        CurveFitter curveFitter = new CurveFitter(x,y);
-                        curveFitter.doFit(CurveFitter.POLY8);
-
-                        // Display the interpolation on the image
-                        ImageProcessor ip = img.getStack().getProcessor((int) node.birthTime).duplicate();
-                        ip.setColor(Color.BLUE);
-                        // node2Interpolate.forEach(n -> ip.drawOval((int) n.x, (int) n.y, 4, 4));
-                        // draw full curve on the image TODO mayeb problematic plot
-                        Node leftestNode = node2Interpolate.stream().min(Comparator.comparingDouble(n -> n.x)).get();
-                        Node rightestNode = node2Interpolate.stream().max(Comparator.comparingDouble(n -> n.x)).get();
-                        for (int i = (int) leftestNode.x; i < rightestNode.x; i++) {
-                            ip.drawDot(i, (int) curveFitter.f(i));
-                            // draw line between the points
-                            if (i > leftestNode.x)
-                                ip.drawLine((int) i - 1, (int) curveFitter.f(i - 1), (int) i, (int) curveFitter.f(i));
-                        }
-
-                        img.getStack().setProcessor(ip, (int) node.birthTime);
-                        System.out.println("Interpolated points : " + node2Interpolate);
-                    }
-                } catch (Exception e) {
-                    System.err.println("Interpolation failed: " + e.getMessage());
-                }
-            });
-        });
-        img.show();*/
-        Map<Root, List<Node>> insertionPts = rms.getInsertionPoints();
-        insertionPts.keySet().parallelStream().forEach(root -> {
-            List<Node> nodes = insertionPts.get(root);
-            nodes.forEach(node -> {
-                // node is an insertion point
-                // get its position and the positions of its children that appeared at the same time
-                List<Node> node2Interpolate = new ArrayList<>();
-                node2Interpolate.add(node);
-                while (node.child != null && node.child.birthTime == node.birthTime) {
-                    node2Interpolate.add(node.child);
-                    node = node.child;
-                }
-                try {
-                    // find the best polynomial to interpolate the points
-                    if (node2Interpolate.size() > 1) {
-                        double[] x = new double[node2Interpolate.size()];
-                        double[] y = new double[node2Interpolate.size()];
-                        IntStream.range(0, node2Interpolate.size()).forEach(i -> {
-                            // Swap x and y coordinates
-                            x[i] = node2Interpolate.get(i).y;
-                            y[i] = node2Interpolate.get(i).x;
-                        });
-
-                        CurveFitter curveFitter = new CurveFitter(x, y);
-                        curveFitter.doFit(CurveFitter.POLY8);
-
-                        // Display the interpolation on the image
-                        ImageProcessor ip = img.getStack().getProcessor((int) node.birthTime).duplicate();
-                        ip.setColor(Color.BLUE);
-
-                        // draw dots on interpolated points of x and draw line between these points
-                        drawThing0(x, y, ip, curveFitter);
-
-                        img.getStack().setProcessor(ip, (int) node.birthTime);
-                        System.out.println("Interpolated points : " + node2Interpolate);
-                    }
-                } catch (Exception e) {
-                    System.err.println("Interpolation failed: " + e.getMessage());
-                }
-            });
-        });
-        img.setTitle("Interpolated points - Polynomial");
-        img.show();
-    }
-
     public void compareRoots(Map<LocalDateTime, IRootModelParser> result, Map<LocalDateTime, IRootModelParser> result4Compare) {
         // Parcourir chaque date pour effectuer les comparaisons
         for (LocalDateTime date : result.keySet()) {
@@ -921,7 +728,9 @@ public class RootModelGraph {
         }
     }
 
-    /////////////// interpolating points ///////////////
+
+
+    /////////////// interpolating points - NO USE ANYMORE  ///////////////
 
     private void ensureIncreasingXValues(double[] x, double[] y) {
         boolean allIncreasing = true;

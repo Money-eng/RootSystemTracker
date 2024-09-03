@@ -8,9 +8,12 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
+import ij.measure.CurveFitter;
 import ij.measure.ResultsTable;
+import ij.measure.SplineFitter;
 import ij.plugin.RGBStackMerge;
 import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import io.github.rocsg.fijiyama.common.Timer;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
@@ -26,6 +29,7 @@ import org.apache.commons.math3.ml.clustering.DoublePoint;
 import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.apache.commons.math3.ml.distance.DistanceMeasure;
 import org.scijava.vecmath.Point3d;
+import org.scijava.vecmath.Tuple2d;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
@@ -49,7 +53,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -1881,6 +1884,15 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         return new Object[]{nodeMin, rootMin};
     }
 
+    public double getDistanceWithPrimaryNode(Point3d pt) {
+        Object[] closestNode = getClosestNode(pt);
+        Node closestNodeNode = (Node) closestNode[0];
+        Object[] closestNodeInPrimary = getClosestNodeInPrimary(pt);
+        Node closestNodeInPrimaryNode = (Node) closestNodeInPrimary[0];
+        if (closestNodeInPrimaryNode == null) return Double.MAX_VALUE;
+        return Math.sqrt((closestNodeNode.x - closestNodeInPrimaryNode.x) * (closestNodeNode.x - closestNodeInPrimaryNode.x) + (closestNodeNode.y - closestNodeInPrimaryNode.y) * (closestNodeNode.y - closestNodeInPrimaryNode.y));
+    } // better do a projection on the primary root TODO
+
     /**
      * Gets the closest root.
      *
@@ -2792,6 +2804,159 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         }
         System.out.println("Transformation applied");
     }
+
+    /**
+     * Creates a colorful image with time projection of the RSML model.
+     *
+     * @param imgInitSize      the initial ImagePlus object
+     * @param SIZE_FACTOR      the size factor
+     * @param binaryColor      the binary color mode
+     * @param observationTime  the observation time
+     * @param dotLineForHidden flag to show dot lines for hidden paths
+     * @param symbolOptions    options for displaying symbols
+     * @param lineWidths       the line widths for each root order
+     * @return the ImagePlus object with colorful projections
+     */
+    public ImagePlus createColorfulImageWithTime(ImagePlus imgInitSize, int SIZE_FACTOR, boolean binaryColor, double observationTime, boolean dotLineForHidden, boolean[] symbolOptions, double[] lineWidths) {
+        int[] initDims = new int[]{imgInitSize.getWidth(), imgInitSize.getHeight()};
+        return createColorfulImageWithTime(initDims, SIZE_FACTOR, binaryColor, observationTime, dotLineForHidden, symbolOptions, lineWidths, false);
+    }
+
+
+    /**
+     * Creates a colorful image with time projection of the RSML model.
+     *
+     * @param initDims         the initial dimensions
+     * @param SIZE_FACTOR      the size factor
+     * @param binaryColor      the binary color mode
+     * @param observationTime  the observation time
+     * @param dotLineForHidden flag to show dot lines for hidden paths
+     * @param symbolOptions    options for displaying symbols
+     * @param lineWidths       the line widths for each root order
+     * @param countInHours     flag to count in hours
+     * @return the ImagePlus object with colorful projections
+     */
+    public ImagePlus createColorfulImageWithTime(int[] initDims, int SIZE_FACTOR, boolean binaryColor, double observationTime, boolean dotLineForHidden, boolean[] symbolOptions, double[] lineWidths, boolean countInHours) {
+        boolean showSymbols = symbolOptions[0];
+        boolean distinguishStartSymbol = symbolOptions[1];
+        boolean distinguishDateStartSymbol = symbolOptions[3];
+        boolean showIntermediateSymbol = symbolOptions[4];
+
+        if (observationTime < 0) observationTime = 1E8; // Full root system
+
+        int w = initDims[0] * SIZE_FACTOR;
+        int h = initDims[1] * SIZE_FACTOR;
+
+        ImagePlus imgRSML = new ImagePlus("", new ColorProcessor(w, h));
+        ImageProcessor ip = imgRSML.getProcessor();
+
+        // Define a vibrant color palette
+        Color[] palette = {Color.RED, Color.GREEN, Color.BLUE, Color.ORANGE, Color.MAGENTA, Color.CYAN, Color.YELLOW};
+
+        // Draw lines and dot lines
+        for (Root r : rootList) {
+            Node n = r.firstNode;
+            Node n1;
+            Color color = palette[r.order % palette.length]; // Use vibrant colors based on root order
+            double maxDate = r.getDateMax();
+            boolean timeOver = false;
+
+            while (n.child != null && !timeOver && ((countInHours ? n.birthTimeHours : n.child.birthTime) <= observationTime)) {
+                n1 = n;
+                n = n.child;
+
+                double width = lineWidths[r.order - 1] > 1 ? lineWidths[r.order - 1] : 1;
+                int dotEvery = n1.hiddenWayToChild ? 2 : 0;
+
+                // Handle partial lines if time exceeds observation time
+                if ((countInHours ? n.birthTimeHours : n.birthTime) > observationTime) {
+                    double ratio = (observationTime - (countInHours ? n1.birthTimeHours : n1.birthTime)) /
+                            ((countInHours ? n.birthTimeHours : n.birthTime) - (countInHours ? n1.birthTimeHours : n1.birthTime));
+                    double partialX = (n.x - n1.x) * ratio + n1.x;
+                    double partialY = (n.y - n1.y) * ratio + n1.y;
+                    drawDotline(ip, (int) ((n1.x + 0.5) * SIZE_FACTOR), (int) ((n1.y + 0.5) * SIZE_FACTOR),
+                            (int) ((partialX + 0.5) * SIZE_FACTOR), (int) ((partialY + 0.5) * SIZE_FACTOR),
+                            dotEvery, width, color);
+                    timeOver = true;
+                } else {
+                    drawDotline(ip, (int) ((n1.x + 0.5) * SIZE_FACTOR), (int) ((n1.y + 0.5) * SIZE_FACTOR),
+                            (int) ((n.x + 0.5) * SIZE_FACTOR), (int) ((n.y + 0.5) * SIZE_FACTOR),
+                            dotEvery, width, color);
+                }
+            }
+        }
+
+        // Draw hidden dot lines if needed
+        if (dotLineForHidden) {
+            for (Root r : rootList) {
+                if (r.order < 2) continue;
+                Node n = r.firstNode;
+                Node nPar = r.parentNode;
+                if (nPar == null) continue;
+
+                int dotEvery = 2;
+                double width = 2;
+                if (!((countInHours ? n.birthTimeHours : n.birthTime) > observationTime)) {
+                    drawDotline(ip, (int) ((nPar.x + 0.5) * SIZE_FACTOR), (int) ((nPar.y + 0.5) * SIZE_FACTOR),
+                            (int) ((n.x + 0.5) * SIZE_FACTOR), (int) ((n.y + 0.5) * SIZE_FACTOR),
+                            dotEvery, width, palette[r.order % palette.length]);
+                }
+            }
+        }
+
+        // Draw symbols
+        if (showSymbols) {
+            for (Root root : rootList) {
+                Node n = root.firstNode;
+                if ((countInHours ? n.birthTimeHours : n.birthTime) > observationTime) continue;
+
+                drawSymbols(ip, n, root, SIZE_FACTOR, palette[root.order % palette.length], distinguishStartSymbol, distinguishDateStartSymbol, showIntermediateSymbol, lineWidths[root.order - 1], countInHours, observationTime);
+            }
+        }
+
+        return imgRSML;
+    }
+
+    /**
+     * Draws the symbols on the image processor.
+     */
+    private void drawSymbols(ImageProcessor ip, Node n, Root root, int SIZE_FACTOR, Color color, boolean distinguishStartSymbol, boolean distinguishDateStartSymbol, boolean showIntermediateSymbol, double lineWidth, boolean countInHours, double observationTime) {
+        ip.setColor(color);
+        double maxDate = root.getDateMax();
+        Node n1;
+
+        // Draw start symbol
+        if (distinguishStartSymbol) {
+            ip.fillOval((int) ((n.x + 0.5) * SIZE_FACTOR - 3), (int) ((n.y + 0.5) * SIZE_FACTOR - 3), 6, 6);
+        }
+
+        // Traverse through nodes and draw intermediary and end symbols
+        while (n.child != null && ((countInHours ? n.birthTimeHours : n.birthTime) < observationTime)) {
+            n1 = n;
+            n = n.child;
+            if ((countInHours ? n.birthTimeHours : n.birthTime) > observationTime) continue;
+
+            if (showIntermediateSymbol && Math.abs((countInHours ? n.birthTimeHours : n.birthTime) - Math.round((countInHours ? n.birthTimeHours : n.birthTime))) < 0.001) {
+                ip.fillOval((int) ((n.x + 0.5) * SIZE_FACTOR - 2), (int) ((n.y + 0.5) * SIZE_FACTOR - 2), 4, 4);
+            }
+        }
+
+        // Draw end symbol
+        ip.setColor(color);
+        ip.fillOval((int) ((n.x + 0.5) * SIZE_FACTOR - 3), (int) ((n.y + 0.5) * SIZE_FACTOR - 3), 6, 6);
+    }
+
+    /**
+     * Draws a dot line between two points with a given color and width.
+     */
+    private void drawDotline(ImageProcessor ip, int x1, int y1, int x2, int y2, int dotEvery, double width, Color color) {
+        ip.setColor(color);
+        ip.setLineWidth((int) width);
+
+
+        ip.drawLine(x1, y1, x2, y2);
+    }
+
 
     /**
      * Creates the gray scale image with time.
@@ -3765,7 +3930,17 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         // assert that the number of nodes of the newly created root is the same as the sum of the number of points of all the roots
         assert countNodes == root.nNodes : "The number of nodes of the newly created root is not the same as the sum of the number of points of all the roots";
 
-
+        List<Node> node2Remove = new ArrayList<>();
+        Node n = root.firstNode;
+        while (n.child != null) {
+            if (n.child.x == n.x && n.child.y == n.y && n.child.birthTime == n.birthTime) {
+                node2Remove.add(n.child);
+            }
+            n = n.child;
+        }
+        for (Node node : node2Remove) {
+            root.removeNode(node);
+        }
         return root;
     }
 
@@ -3792,7 +3967,8 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         double mean_tot_dist = 0;
         double max_tot_dist = 0;
         int count = 0;
-        Map<Float, List<Node>> nodes = new HashMap<>();
+        TreeMap<Float, List<Node>> nodes = new TreeMap<>();
+
 
         // Iterate through each root in the root list
         for (Root r : this.rootList) {
@@ -3813,7 +3989,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
 
             // Call the new function to process nodes and calculate means
-            List<Double> meanDist = selectionBestNode(r, nodes, timeWithMaxPoints, minTime);
+            List<Double> meanDist = selectionBestNodeWithLength(r, nodes, timeWithMaxPoints, minTime);
             if (r.order != 1) {
                 max_tot_dist = Math.max(max_tot_dist, meanDist.stream().max(Double::compareTo).get());
                 mean_tot_dist += meanDist.stream().mapToDouble(Double::doubleValue).sum();
@@ -3830,10 +4006,9 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
         for (Root r : this.rootList) {
             if (r.order >= 2) { // TODO generalize
                 Object[] result = getClosesNodeParentOrder(new Point3d(r.firstNode.x, r.firstNode.y, r.firstNode.birthTime), r);
-                r.firstNode.parent = (Node) result[0];
                 r.parentNode = (Node) result[0];
                 r.parent = (Root) result[1];
-                r.firstNode.parent.birthTime = Math.min(r.firstNode.birthTime, r.firstNode.parent.birthTime);
+                //r.parentNode.birthTime = Math.min(r.firstNode.birthTime, r.firstNode.parent.birthTime);
                 r.firstNode.isInsertionPoint = true;
             }
         }
@@ -4116,6 +4291,273 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
             n1 = n1.child;
         }
         assert r.nNodes == count : "The number of nodes of the newly created root is not the same as the sum of the number of points of all the roots";
+    }
+
+    private List<Double> selectionBestNodeWithLength(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
+        List<Double> mean_dist_node = new ArrayList<>();
+        float lastTime = nodes.keySet().stream().max(Float::compareTo).get();
+        int nbNode = r.nNodes;
+
+        List<Float> orderedTime = new ArrayList<>(nodes.keySet());
+        Collections.sort(orderedTime);
+
+        // between all the nodes of index 0, we select the closest to the primary root
+        Node closest2Primary = nodes.get(orderedTime.get(0)).get(0);
+        for (float key : orderedTime) {
+            if (this.getDistanceWithPrimaryNode(new Point3d(nodes.get(key).get(0).x, nodes.get(key).get(0).y, nodes.get(key).get(0).birthTime)) < this.getDistanceWithPrimaryNode(new Point3d(closest2Primary.x, closest2Primary.y, closest2Primary.birthTime))) {
+                closest2Primary = nodes.get(key).get(0);
+            }
+        }
+
+        TreeMap<Double, Double[]> distance2Point = new TreeMap<>();
+        TreeMap<Double, Node> distance2Node = new TreeMap<>();
+        for (float key : orderedTime) {
+            for (Node n : nodes.get(key)) {
+                double distance = Node.distanceFrom(nodes.get(key), n)  + 0;//+ this.getDistanceWithPrimaryNode(new Point3d(nodes.get(key).get(0).x, nodes.get(key).get(0).y, nodes.get(key).get(0).birthTime));;
+                if (nodes.get(key).indexOf(n) == 0) {
+                    //distance = Node.distanceBetween(closest2Primary, n);
+                    distance = 0; // this.getDistanceWithPrimaryNode(new Point3d(n.x, n.y, n.birthTime));
+                }
+                distance2Point.put(distance, new Double[]{(double) n.x, (double) n.y, (double) n.birthTime, (double) n.diameter, (double) distance});
+                distance2Node.put(distance, n);
+            }
+        }
+
+        TreeMap<Double, List<Node>> distance2NodeWithMaxLength = new TreeMap<>();
+        TreeMap<Double, TreeMap<Double, Node>> distance2NodeWithMaxLengthMap4Debbug = new TreeMap<>();
+        for (List<Node> nodeList : nodes.values()) {
+            double distance = 0;
+            for (Node n : nodeList) {
+               if (nodeList.indexOf(n) == 0) {
+                   //distance = 0 ; //Node.distanceBetween(closest2Primary, n);
+                   distance = 0; //this.getDistanceWithPrimaryNode(new Point3d(n.x, n.y, n.birthTime));
+               }
+               else {
+                   distance += Node.distanceBetween(nodeList.get(nodeList.indexOf(n) - 1), n);
+               }
+            }
+            if (!distance2NodeWithMaxLength.keySet().isEmpty() && distance - distance2NodeWithMaxLength.lastKey() <= 5e-3) {
+                // change the value of last key
+                double maxDist = Math.max(distance, distance2NodeWithMaxLength.lastKey());
+                distance2NodeWithMaxLength.remove(distance2NodeWithMaxLength.lastKey());
+                distance2NodeWithMaxLength.put(maxDist, new ArrayList<>());
+            }
+            else {
+                distance2NodeWithMaxLength.put(distance, new ArrayList<>());
+            }
+        }
+
+        for (double key : distance2Node.keySet()) {
+            // find the last key of distance2NodeWithMaxLength that is bigger than the distance
+            double maxKey = -1;
+            for (double key2 : distance2NodeWithMaxLength.keySet()) {
+                if (key2 >= key) {
+                    maxKey = key2;
+                    break;
+                }
+            }
+            if (maxKey == -1) {
+                maxKey = distance2NodeWithMaxLength.lastKey();
+            }
+            distance2NodeWithMaxLength.get(maxKey).add(distance2Node.get(key));
+            distance2NodeWithMaxLengthMap4Debbug.computeIfAbsent(maxKey, k -> new TreeMap<>()).put(key, distance2Node.get(key));
+        }
+
+        TreeMap<Float, List<Node>> time2NodeWithMaxLength = new TreeMap<>();
+        TreeMap<Float, List<Double[]>> time2ArrayWithMaxLength = new TreeMap<>();
+        for (double key : distance2NodeWithMaxLength.keySet()) {
+            float minTimeOfList = Float.MAX_VALUE;
+            List<Double[]> array = new ArrayList<>();
+            for (Node n : distance2NodeWithMaxLength.get(key)) {
+                minTimeOfList = Math.min(minTimeOfList, n.birthTime);
+                array.add(new Double[]{(double) n.x, (double) n.y, (double) n.birthTime, (double) n.diameter, (double) key});
+            }
+            time2NodeWithMaxLength.computeIfAbsent(minTimeOfList, k -> new ArrayList<>()).addAll(distance2NodeWithMaxLength.get(key));
+            time2ArrayWithMaxLength.computeIfAbsent(minTimeOfList, k -> new ArrayList<>()).addAll(array);
+        }
+
+        Node firstnode0 = r.firstNode;
+        for (float timeofTime2Array : time2ArrayWithMaxLength.keySet()) {
+            for (Double[] array : time2ArrayWithMaxLength.get(timeofTime2Array)) {
+                firstnode0.x = array[0].floatValue();
+                firstnode0.y = array[1].floatValue();
+                if (time2ArrayWithMaxLength.get(timeofTime2Array).indexOf(array) == time2ArrayWithMaxLength.get(timeofTime2Array).size() - 1) {
+                    firstnode0.birthTime = timeofTime2Array -1 + (((float) time2ArrayWithMaxLength.get(timeofTime2Array).indexOf(array) + 1)) / (time2ArrayWithMaxLength.get(timeofTime2Array).size());
+                    firstnode0.birthTimeHours = (float) Arrays.stream(hoursCorrespondingToTimePoints).max().getAsDouble()  + (((float) time2ArrayWithMaxLength.get(timeofTime2Array).indexOf(array) + 1)) / (time2ArrayWithMaxLength.get(timeofTime2Array).size());
+                } else {
+                    firstnode0.birthTime = timeofTime2Array - 1 + (((float) time2ArrayWithMaxLength.get(timeofTime2Array).indexOf(array) +1)) / (time2ArrayWithMaxLength.get(timeofTime2Array).size());
+                    firstnode0.birthTimeHours = (float) hoursCorrespondingToTimePoints[(int) Math.floor(firstnode0.birthTime)] + (((float) time2ArrayWithMaxLength.get(timeofTime2Array).indexOf(array) + 1)) / (time2ArrayWithMaxLength.get(timeofTime2Array).size());
+                }
+                firstnode0.diameter = array[3].floatValue();
+                firstnode0 = firstnode0.child;
+            }
+        }
+
+        TreeMap<Float, List<Node>> nodeTime2 = new TreeMap<>();
+        Node firstNode = r.firstNode;
+        while (firstNode != null) {
+            nodeTime2.computeIfAbsent((float) Math.ceil(firstNode.birthTime), k -> new ArrayList<>()).add(firstNode);
+            firstNode = firstNode.child;
+        }
+        nodeTime2.get(nodeTime2.keySet().stream().max(Float::compareTo).get()).get(nodeTime2.get(nodeTime2.keySet().stream().max(Float::compareTo).get()).size() - 1).child = null;
+        nodeTime2.get(nodeTime2.keySet().stream().min(Float::compareTo).get()).get(0).parent = null;
+
+        interpolateRoot(r, nodeTime2);
+
+        Node parentFirstNode = r.firstNode;
+        firstNode = r.firstNode;
+        while (firstNode != null) {
+            if (firstNode.birthTime < 1) {
+                firstNode.birthTime = 0;
+                firstNode.birthTimeHours = 0;
+            }
+            parentFirstNode = firstNode;
+            firstNode = firstNode.child;
+
+            // if distance between two nodes is too big, we show the distance
+            if (firstNode != null && Node.distanceBetween(parentFirstNode, firstNode) > 100) {
+                System.out.println("Error: distance between two nodes is too big");
+                firstNode = firstNode.child; // TODO: correct
+                parentFirstNode.child = firstNode;
+                firstNode.parent = parentFirstNode;
+            }
+        }
+        assert r.firstNode != null;
+        r.firstNode.parent = null;
+        r.lastNode = parentFirstNode;
+
+        return new ArrayList<>(distance2Point.keySet());
+    }
+
+    private void interpolateRootWithConsistentTimes(Root r, TreeMap<Float, List<Node>> nodeTimeMap) {
+        double targetDistance = 10000; // Distance idéale entre les nœuds, ajustable selon le besoin.
+        Node currentNode = r.firstNode;
+        double accumulatedDistance = 0;
+
+        for (float time : nodeTimeMap.keySet()) {
+            List<Node> nodesAtTime = nodeTimeMap.get(time);
+            Node firstNode = nodesAtTime.get(0);
+
+            for (int i = 1; i < nodesAtTime.size(); i++) {
+                Node nextNode = nodesAtTime.get(i);
+                double segmentDistance = Node.distanceBetween(firstNode, nextNode);
+
+                accumulatedDistance += segmentDistance;
+                if (accumulatedDistance >= targetDistance || i == nodesAtTime.size() - 1) {
+                    repositionNode(firstNode, nextNode, accumulatedDistance / targetDistance);
+                    accumulatedDistance = 0;
+                    firstNode = nextNode;
+                }
+            }
+        }
+
+        refreshNodeConnections(r);
+    }
+
+    private void repositionNode(Node start, Node end, double ratio) {
+        // On ajuste la position des nœuds en utilisant une interpolation linéaire sans créer de nouveaux objets.
+        start.x = (float) (start.x + ratio * (end.x - start.x));
+        start.y = (float) (start.y + ratio * (end.y - start.y));
+        start.birthTime = (float) (start.birthTime + ratio * (end.birthTime - start.birthTime));
+
+        // Recalculer les autres attributs dérivés (par exemple, l'angle, la longueur, etc.)
+        if (start.child != null) {
+            float dx = start.child.x - start.x;
+            float dy = start.child.y - start.y;
+            start.theta = Node.vectToTheta(dx, dy);
+            start.length = Node.norm(dx, dy);
+        }
+    }
+
+    private void refreshNodeConnections(Root r) {
+        Node currentNode = r.firstNode;
+        while (currentNode != null) {
+            if (currentNode.parent != null) {
+                float dx = currentNode.x - currentNode.parent.x;
+                float dy = currentNode.y - currentNode.parent.y;
+                currentNode.parent.theta = Node.vectToTheta(dx, dy);
+                currentNode.parent.length = Node.norm(dx, dy);
+            }
+            currentNode = currentNode.child;
+        }
+    }
+
+    private void interpolateRoot(Root r, TreeMap<Float, List<Node>> nodeTime2) {
+        double distance4Interpolation = 20;
+        // from the first node to the last node of the lists of time2NodeWithMaxLength, we keep the position of the first node and the last node and we interpolate the nodes in between one node and another one at the distance
+        List<Node> lastNodes = new ArrayList<>();
+        for (float key : nodeTime2.keySet()) {
+            Node firstNode = nodeTime2.get(key).get(0);
+            HashMap<Node, List<Node>> nodes2Interpolate = new HashMap<>();
+            nodes2Interpolate.put(firstNode, new ArrayList<>());
+            double distance = 0;
+            for (int i = 1; i < nodeTime2.get(key).size(); i++) {
+                distance += Node.distanceBetween(nodeTime2.get(key).get(i - 1), nodeTime2.get(key).get(i));
+                if (distance > distance4Interpolation || i == nodeTime2.get(key).size() - 1) {
+                    Node lastNode = nodeTime2.get(key).get(i);
+                    nodes2Interpolate.put(lastNode, new ArrayList<>());
+                    for (Node n : nodes2Interpolate.get(firstNode)) {
+                        if (lastNode.birthTime == firstNode.birthTime) {
+                            System.out.println("Error: same birth time");
+                            lastNode.birthTime = firstNode.birthTime - 1;
+                        }
+                        n.x = firstNode.x + (n.birthTime - firstNode.birthTime) * (lastNode.x - firstNode.x) / (lastNode.birthTime - firstNode.birthTime);
+                        n.y = firstNode.y + (n.birthTime - firstNode.birthTime) * (lastNode.y - firstNode.y) / (lastNode.birthTime - firstNode.birthTime);
+                    }
+                    distance = 0;
+                    lastNodes.add(lastNode);
+                    firstNode = lastNode;
+                }
+                else {
+                    nodes2Interpolate.get(firstNode).add(nodeTime2.get(key).get(i));
+                }
+            }
+        }
+        for (Node n : lastNodes) {
+            if (n.child == null) continue;
+            r.removeNode(n);
+//            Node nParent = n.parent;
+//            Node nChild = n.child;
+//            n.x = nParent.x + (n.birthTime - nParent.birthTime) * (nChild.x - nParent.x) / (nChild.birthTime - nParent.birthTime);
+//            n.y = nParent.y + (n.birthTime - nParent.birthTime) * (nChild.y - nParent.y) / (nChild.birthTime - nParent.birthTime);
+        }
+        System.out.println("Debug");
+    }
+
+
+    private void interpolateRootCurveFitter(Root r, TreeMap<Float, List<Node>> nodeTime2) {
+        // from the first node to the last node of the lists of time2NodeWithMaxLength, we keep the position of the first node and the last node and we interpolate the nodes in between one node and another one at the distance
+        float[] x = new float[r.nNodes];
+        float[] y = new float[r.nNodes];
+
+        Node firstNode = r.firstNode;
+        x[0] = firstNode.x;
+        y[0] = firstNode.y;
+        int j = 0;
+        while (firstNode != null) {
+            x[j] = firstNode.x;
+            y[j] = firstNode.y;
+            firstNode = firstNode.child;
+            j++;
+        }
+        SplineFitter cf = new SplineFitter(x, y, x.length);
+        double[] xInterpolated = new double[r.nNodes];
+        double[] yInterpolated = new double[r.nNodes];
+        for (int i = 0; i < r.nNodes; i++) {
+            xInterpolated[i] = x[i];
+            yInterpolated[i] = cf.evalSpline(xInterpolated[i]);
+        }
+
+        firstNode = r.firstNode;
+        int i = 0;
+        while (firstNode != null) {
+            firstNode.x = (float) xInterpolated[i];
+            firstNode.y = (float) yInterpolated[i];
+            firstNode = firstNode.child;
+            i++;
+        }
+
+        System.out.println("Debug");
     }
 
     private List<Double> selectionBestNode(Root r, Map<Float, List<Node>> nodes, float timeWithMaxPoints, float minTime) {
@@ -4484,7 +4926,7 @@ public class RootModel extends WindowAdapter implements Comparable<RootModel>, I
 
         // Ajouter des points aléatoires à la racine
         int numberOfPoints = random.nextInt(10) + 2; // Nombre aléatoire de points par racine
-        float lastBirthTime = parentRoot != null ? Math.max(parentRoot.firstNode.birthTime + random.nextInt((int) Math.ceil(parentRoot.lastNode.birthTime)), 1) : 0;
+        float lastBirthTime = parentRoot != null ? Math.max(parentRoot.firstNode.birthTime + Math.abs(random.nextInt((int) Math.ceil(parentRoot.lastNode.birthTime))), 1) : 0;
 
         for (int i = 0; i < numberOfPoints; i++) {
             //

@@ -14,9 +14,17 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * The RSMLParser2DT class provides methods to parse RSML files and extract root models.
+ */
 public class RSMLParser2DT {
-    private Document document;
+    private Document document; // The XML document to be parsed
 
+    /**
+     * The main method to execute the RSML parsing and writing process.
+     *
+     * @param args Command line arguments.
+     */
     public static void main(String[] args) {
         String rsmlFile = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\61_graph_expertized.rsml";
         RootModel rm = rootModelReadFromRsml(rsmlFile);
@@ -24,8 +32,12 @@ public class RSMLParser2DT {
         System.out.println("Done");
     }
 
-    // Reading RSML 2D = t file and return a list of RootModel
-
+    /**
+     * Reads an RSML file and returns a RootModel object.
+     *
+     * @param rsmlFile The path to the RSML file.
+     * @return A RootModel object containing the parsed data.
+     */
     public static RootModel rootModelReadFromRsml(String rsmlFile) {
         RootModel rootModels = new RootModel();
         try {
@@ -53,6 +65,12 @@ public class RSMLParser2DT {
         return rootModels;
     }
 
+    /**
+     * Parses the metadata from the RSML file and populates the RootModel object.
+     *
+     * @param rootElement The root element of the RSML document.
+     * @param rm The RootModel object to populate.
+     */
     private static void parseMetadata(Element rootElement, RootModel rm) {
         Element metadata = (Element) rootElement.getElementsByTagName("metadata").item(0);
         rm.initializeMetadata();
@@ -65,8 +83,6 @@ public class RSMLParser2DT {
         rootMetadata.setSoftware(metadata.getElementsByTagName("software").item(0).getTextContent());
         rootMetadata.setUser(metadata.getElementsByTagName("user").item(0).getTextContent());
         rootMetadata.setFileKey(metadata.getElementsByTagName("file-key").item(0).getTextContent());
-
-        // <observation-hours>0.0,13.6599,19.6568,25.6655,31.6591,37.6594,43.6526,49.6572,55.6594,61.6578,67.6603,73.6592,79.664,85.6588,91.657,95.4302,101.4292,107.4299,113.4346,119.4347,125.4336,131.4316,137.4288,157.5066,159.2217,164.6051,170.6008,181.3911,182.6025</observation-hours>
 
         String[] observationHours = metadata.getElementsByTagName("observation-hours").item(0).getTextContent().split(",");
         double[] observationHoursDouble = new double[observationHours.length + 1];
@@ -82,6 +98,12 @@ public class RSMLParser2DT {
         rootMetadata.addImageInfo("sha256", image.getElementsByTagName("sha256").item(0).getTextContent());
     }
 
+    /**
+     * Parses the scene element from the RSML file and populates the RootModel object.
+     *
+     * @param sceneElement The scene element to parse.
+     * @param rootModel The RootModel object to populate.
+     */
     private static void parseScene(Element sceneElement, RootModel rootModel) {
         NodeList plantNodes = sceneElement.getElementsByTagName("plant");
 
@@ -91,7 +113,6 @@ public class RSMLParser2DT {
             plant.id = (plantElement.getAttribute("ID"));
             plant.label = (plantElement.getAttribute("label"));
 
-
             rootModel.imgName = plantElement.getAttribute("label");
 
             NodeList rootNodes = plantElement.getElementsByTagName("root");
@@ -99,12 +120,19 @@ public class RSMLParser2DT {
                 Element rootElement = (Element) rootNodes.item(j);
                 parseRoot(rootElement, null, rootModel, 1, new HashSet<String>());
             }
-            //rootModel.standardOrderingOfRoots(); later in the code for debuging
         }
     }
 
+    /**
+     * Parses the root element from the RSML file and populates the RootModel object.
+     *
+     * @param rootElement The root element to parse.
+     * @param parentRoot The parent root, if any.
+     * @param rm The RootModel object to populate.
+     * @param order The order of the root.
+     * @param rootsLabel A set of root labels.
+     */
     private static void parseRoot(Element rootElement, Root parentRoot, RootModel rm, int order, Set<String> rootsLabel) {
-        // depends on the number of points in the id
         int ord = rootElement.getAttribute("ID").split("\\.").length - 1;
         if (ord != order) return;
         Root root = new Root(null, rm, rootElement.getAttribute("label"), order);
@@ -121,11 +149,15 @@ public class RSMLParser2DT {
             Element childRootElement = (Element) childRootNodes.item(i);
             parseRoot(childRootElement, root, rm, order + 1, rootsLabel);
         }
-
     }
 
+    /**
+     * Parses the geometry of the root element and populates the Root object.
+     *
+     * @param rootElement The root element to parse.
+     * @param root The Root object to populate.
+     */
     private static void parseRootGeometry(Element rootElement, Root root) {
-        // 1 geometry and 1 polyline per root
         Element geometryElement = (Element) rootElement.getElementsByTagName("geometry").item(0);
         Element polylineElement = (Element) geometryElement.getElementsByTagName("polyline").item(0);
         NodeList pointNodes = polylineElement.getElementsByTagName("point");
@@ -142,5 +174,4 @@ public class RSMLParser2DT {
                     k == 0);
         }
     }
-
 }

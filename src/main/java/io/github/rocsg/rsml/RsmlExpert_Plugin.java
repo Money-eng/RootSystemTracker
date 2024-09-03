@@ -684,6 +684,7 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
     public void setupImageAndRsml() {
         // Load the registered stack image from the specified path
         registeredStack = IJ.openImage(new File(stackPath).getAbsolutePath());
+        IJ.run(registeredStack, "Enhance Contrast", "saturated=0.35");
 
         // Load the RSML model from the specified path
         currentModel = rootModelReadFromRsml(rsmlPath); // TODO DANGER

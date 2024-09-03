@@ -2589,6 +2589,21 @@ public class Root implements Comparable<Root>, IRootParser {
         }
         return nodes;
     }
+
+    public void removeNode(Node node) {
+        Node first = this.firstNode;
+        if (first.equals(node)) {
+            this.firstNode = first.child;
+            return;
+        }
+        while (first.child != null) {
+            if (first.child.equals(node)) {
+                first.child = first.child.child;
+                return;
+            }
+            first = first.child;
+        }
+    }
 }
 
 class DistanceBTWRoots implements Comparator<Root> {

@@ -41,10 +41,8 @@ public class SegmentToSegment {
         ImageJ ij = new ImageJ();
         String mainDataDir = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\";
         double proximityThreshold = 2.0;
-        RootModel rm = RootModel.RootModelWildReadFromRsml(mainDataDir + "61_graph_expertized.rsml");
-        ImagePlus seqReg = IJ.openImage(mainDataDir + "22_registered_stack.tif");
-        ImagePlus img = drawComplexByTime(rm, seqReg, proximityThreshold);
-        img.show();
+        RootModel rm;
+        ImagePlus seqReg;
 
         String rootDirectory = "D:\\loaiu\\MAM5\\Stage\\data\\UC1";
         ArrayList<File> matchingFolders = new ArrayList<>();

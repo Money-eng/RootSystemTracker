@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  */
 public class Rsml2DParser {
 
-    public static boolean anonymize = false;
+    public static boolean anonymize = true;
     public static final double probaOfAno = 1; // Probability of anonymization
 
     // Formatter pour LocalDateTime (dates avec heures)
@@ -338,6 +338,7 @@ public class Rsml2DParser {
                     }
                     rootModel.addScene(scene);
                 }
+                rsmlInfos.get(fileDates.get(rsmlFile)).add(rootModel);
                 rsmlInfos.get(fileDates.get(rsmlFile)).add(rootModel);
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -674,6 +675,11 @@ public class Rsml2DParser {
         // Initialize counters to track the number of correctly and incorrectly classified roots.
         int numbadlyclassified = 0;
         int numwellclassified = 0;
+        int numwronglyclassified = 0;
+
+        List<IRootParser> wellClassifiedRoots = new ArrayList<>();
+        List<IRootParser> misClassifiedRoots = new ArrayList<>();
+        List<IRootParser> notClassifiedRoots = new ArrayList<>();
 
         // Get the most recent time step.
         LocalDateTime lastTime = new ArrayList<>(result.keySet()).get(result.keySet().size() - 1);
@@ -694,12 +700,14 @@ public class Rsml2DParser {
                 }
 
                 // Find the best matching root from the next time step.
-                IRootParser foundRoot = findBestMatchingRoot(cRoot, nextTimeRoots, classifyRoots);
+                IRootParser foundRoot = findRootBySHAPEandINSERTION(cRoot, nextTimeRoots, classifyRoots);
+                // findRootBySHAPEandINSERTION(cRoot, nextTimeRoots, classifyRoots);
 
-                // Compare the labels of the current root and the found root to determine correct classification.
+                // Compare the labels of the current root and the found root to determine the correct classification.
                 if (foundRoot != null) {
                     if (foundRoot.getLabel().equals(cRoot.getLabel())) {
                         numwellclassified++;
+                        wellClassifiedRoots.add(cRoot);
 
                         // Remove the root from the misclassified list.
                         classifyRoots.get("misclassified").remove(cRoot.getId());
@@ -712,10 +720,12 @@ public class Rsml2DParser {
                         presence.set(i, true);
                         rootPresenceMap.put(foundRoot.getId(), presence);
                     } else {
-                        numbadlyclassified++;
+                        numwronglyclassified++;
+                        misClassifiedRoots.add(cRoot);
                     }
                 } else {
                     numbadlyclassified++;
+                    notClassifiedRoots.add(cRoot);
                 }
             }
 
@@ -726,6 +736,7 @@ public class Rsml2DParser {
         // Print the results of the classification process.
         System.out.println("Number of badly classified roots: " + numbadlyclassified);
         System.out.println("Number of well classified roots: " + numwellclassified);
+        System.out.println("Number of wrongly classified roots: " + numwronglyclassified);
 
         // Return the modified result map.
         return result;
@@ -810,7 +821,7 @@ public class Rsml2DParser {
             double lengthDifferenceScore = calculateLengthDifference(currentRoot, candidateRoot);
 
             // Combine the scores with appropriate weights to find the best match.
-            double combinedScore = (0.2 * insertionPointScore) + (0.8 * shapeSimilarityScore);
+            double combinedScore = (0.1 * insertionPointScore) + (0.9 * shapeSimilarityScore);
 
             if (combinedScore < bestScore) {
                 bestScore = combinedScore;
@@ -823,14 +834,14 @@ public class Rsml2DParser {
     }
 
     // Function to calculate the distance between the insertion points of two roots.
-    private static double calculateInsertionPointDistance(IRootParser root1, IRootParser root2) {
+    public static double calculateInsertionPointDistance(IRootParser root1, IRootParser root2) {
         Point2D point1 = ((Root4Parser) root1).getGeometry().get2Dpt().get(0);
         Point2D point2 = ((Root4Parser) root2).getGeometry().get2Dpt().get(0);
         return point1.distance(point2);
     }
 
     // Function to calculate the shape similarity between two roots based on their polylines.
-    private static double calculatePolylineShapeSimilarity(IRootParser root1, IRootParser root2) {
+    public static double calculatePolylineShapeSimilarity(IRootParser root1, IRootParser root2) {
         List<Point2D> points1 = ((Root4Parser) root1).getGeometry().get2Dpt();
         List<Point2D> points2 = ((Root4Parser) root2).getGeometry().get2Dpt();
         double distanceSum = 0;
@@ -843,7 +854,7 @@ public class Rsml2DParser {
     }
 
     // Function to calculate the difference in length between two roots.
-    private static double calculateLengthDifference(IRootParser root1, IRootParser root2) {
+    public static double calculateLengthDifference(IRootParser root1, IRootParser root2) {
         double length1 = ((Root4Parser) root1).getGeometry().getTotalLength().stream().mapToDouble(Double::doubleValue).sum();
         double length2 = ((Root4Parser) root2).getGeometry().getTotalLength().stream().mapToDouble(Double::doubleValue).sum();
         return Math.abs(length1 - length2);
@@ -912,7 +923,11 @@ public class Rsml2DParser {
             Map<String, List<String>> classifyRoots) {
 
         int numBadlyClassified = 0;
+        int numWrongClassified = 0;
         int numWellClassified = 0;
+        List<IRootParser> wellClassifiedRoots = new ArrayList<>();
+        List<IRootParser> badlyClassifiedRoots = new ArrayList<>();
+        List<IRootParser> misclassifiedRoots = new ArrayList<>();
 
         // Organiser les racines par temps pour effectuer le clustering
         Map<LocalDateTime, List<IRootParser>> rootsByTime = new TreeMap<>();
@@ -956,6 +971,7 @@ public class Rsml2DParser {
                 if (foundRoot != null) {
                     if (foundRoot.getLabel().equals(cRoot.getLabel())) {
                         numWellClassified++;
+                        wellClassifiedRoots.add(cRoot);
                         classifyRoots.get("misclassified").remove(cRoot.getId()); // Retirer des mal classifiés
                         rootPresenceMap.remove(cRoot.getId()); // Retirer du suivi des présences
 
@@ -970,24 +986,26 @@ public class Rsml2DParser {
                         catch (Exception e) {
                             System.out.println("Error: " + e);
                         }
-
                         rootPresenceMap.put(foundRoot.getId(), presence);
                     } else {
-                        numBadlyClassified++;
+                        numWrongClassified++;
+                        badlyClassifiedRoots.add(cRoot);
                     }
                 } else {
                     numBadlyClassified++;
+                    misclassifiedRoots.add(cRoot);
                 }
             }
             nextTimeRoots = currentRoots;
         }
 
+
         System.out.println("Number of well-classified roots: " + numWellClassified);
-        System.out.println("Number of badly-classified roots: " + numBadlyClassified);
+        System.out.println("Number of not-classified roots: " + numBadlyClassified);
+        System.out.println("Number of wrongly-classified roots: " + numWrongClassified);
 
         return result;
     }
-
 }
 
 class RootClustering {
@@ -997,12 +1015,14 @@ class RootClustering {
         public List<IRootParser> roots;
         public Point2D centroid;
         public int order; // Ajouter l'ordre comme critère
+        public int numberOfLastAddedChildren; // Suivre le nombre d'enfants ajoutés à chaque itération
         public int totalChildren; // Suivre le nombre d'enfants au fil du temps
 
         public RootCluster(int order) {
             this.roots = new ArrayList<>();
             this.order = order;
             this.totalChildren = 0;
+            this.numberOfLastAddedChildren = 0;
         }
 
         // Mise à jour du centroïde du cluster
@@ -1024,6 +1044,7 @@ class RootClustering {
         public void addRoot(IRootParser root) {
             this.roots.add(root);
             this.totalChildren += root.getChildren().size();
+            this.numberOfLastAddedChildren = root.getChildren().size();
             updateCentroid();
         }
 
@@ -1065,7 +1086,7 @@ class RootClustering {
                 if (bestCluster != null && validateRoot(root, bestCluster, t)) { // Ajout des vérifications
                     bestCluster.addRoot(root);
                 } else {
-                    System.out.println("Incohérence détectée pour la racine " + root.getId() + " à l'instant " + currentTime);
+                    System.out.println("Incohérence détectée pour la racine " + root.getLabel() + " à l'instant " + currentTime);
                 }
             }
         }
@@ -1077,13 +1098,7 @@ class RootClustering {
     private static boolean validateRoot(IRootParser root, RootCluster bestCluster, int timeIndex) {
         Root4Parser currentRoot = (Root4Parser) root;
 
-        // Vérification de l'existence du parent
-        boolean hasValidParent = currentRoot.getParent() != null;
-
-        // Validation du nombre d'enfants
-        boolean validChildCount = bestCluster.isValidChildCount(currentRoot.getChildren().size());
-
-        return hasValidParent && validChildCount;
+        return true;
     }
 
     // Trouver le meilleur cluster pour une racine en fonction de la distance d'insertion et d'autres critères

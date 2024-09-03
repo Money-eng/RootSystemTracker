@@ -20,8 +20,17 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.File;
 import java.time.LocalDateTime;
 
+/**
+ * The RSMLWriter2DT class provides methods to write RSML files from RootModel objects.
+ */
 public class RSMLWriter2DT {
 
+    /**
+     * Writes the given RootModel to an RSML file at the specified file path.
+     *
+     * @param rootModel The RootModel object to write.
+     * @param filePath The path to the output RSML file.
+     */
     public static void writeRSML(RootModel rootModel, String filePath) {
         try {
             DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
@@ -72,6 +81,13 @@ public class RSMLWriter2DT {
         }
     }
 
+    /**
+     * Writes the metadata of the given RootModel to the specified metadata element.
+     *
+     * @param rootModel The RootModel object containing the metadata.
+     * @param metadataElement The metadata element to populate.
+     * @param doc The XML document being constructed.
+     */
     private static void writeMetadata(RootModel rootModel, Element metadataElement, Document doc) {
         Metadata metadata = rootModel.metadata;
 
@@ -101,6 +117,13 @@ public class RSMLWriter2DT {
         createElementAndAppend("sha256", "Nothing there", imageElement, doc);
     }
 
+    /**
+     * Writes the given Plant object to the specified scene element.
+     *
+     * @param plant The Plant object to write.
+     * @param sceneElement The scene element to populate.
+     * @param doc The XML document being constructed.
+     */
     private static void writePlant(Plant plant, Element sceneElement, Document doc) {
         Element plantElement = doc.createElement("plant");
         plantElement.setAttribute("ID", plant.id);
@@ -116,6 +139,13 @@ public class RSMLWriter2DT {
         }
     }
 
+    /**
+     * Writes the given Root object to the specified parent element.
+     *
+     * @param root The Root object to write.
+     * @param parentElement The parent element to populate.
+     * @param doc The XML document being constructed.
+     */
     private static void writeRoot(Root root, Element parentElement, Document doc) {
         Element rootElement = doc.createElement("root");
         rootElement.setAttribute("ID", parentElement.getAttribute("ID") + "." + root.getId());
@@ -153,6 +183,14 @@ public class RSMLWriter2DT {
         }
     }
 
+    /**
+     * Creates an element with the specified tag name and text content, and appends it to the parent element.
+     *
+     * @param tagName The tag name of the element to create.
+     * @param textContent The text content of the element.
+     * @param parentElement The parent element to append the new element to.
+     * @param doc The XML document being constructed.
+     */
     private static void createElementAndAppend(String tagName, String textContent, Element parentElement, Document doc) {
         Element element = doc.createElement(tagName);
         element.appendChild(doc.createTextNode(textContent));
