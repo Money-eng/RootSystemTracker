@@ -3,6 +3,8 @@ package io.github.rocsg.rootsystemtracker;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
 
 import io.github.rocsg.fijiyama.common.VitiDialogs;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
@@ -35,16 +37,17 @@ public class PipelineParamHandler {
 	double minDistanceBetweenLateralInitiation=4;
 	double minLateralStuckedToOtherLateral=30;
 	public int memorySaving=0;//if 1, don't save very big debug images;
-	int xMinCrop=122;
-	int yMinCrop=212;
-	int dxCrop=1348;
-	int dyCrop=1166;
-	int maxLinear=4;
+	static int xMinCrop=122;
+	static int yMinCrop=212;
+	static int dxCrop=1348;
+	static int dyCrop=1166;
+	static int maxLinear=4;
 	String typeExp="Simple";
-	public int subsamplingFactor=4;
-	int marginRegisterLeft=12;
-	int marginRegisterUp=135;
-	int marginRegisterRight=0;
+	public static int subsamplingFactor=4;
+	static int marginRegisterLeft=12;
+	static int marginRegisterUp=135;
+	static int marginRegisterRight=0;
+	static int marginRegisterDown=0;
 	boolean applyFullPipelineImageAfterImage=true;
 	public double toleranceDistanceForBeuckerSimplification=0.9;
 	String[]imgNames;
@@ -60,7 +63,17 @@ public class PipelineParamHandler {
 	
 	public static void main(String[]arg) {
 	}
-	
+	public static void configurePipelineParams(Map<String, String> config) {
+		PipelineParamHandler.subsamplingFactor = Integer.parseInt(config.getOrDefault("scalingFactor", "4"));
+        PipelineParamHandler.xMinCrop = Integer.parseInt(config.getOrDefault("xMinCrop", "0"));
+        PipelineParamHandler.dxCrop = Integer.parseInt(config.getOrDefault("dxCrop", "2305"));
+        PipelineParamHandler.yMinCrop = Integer.parseInt(config.getOrDefault("yMinCrop", "0"));
+        PipelineParamHandler.dyCrop = Integer.parseInt(config.getOrDefault("dyCrop", "2108"));
+        PipelineParamHandler.marginRegisterLeft = Integer.parseInt(config.getOrDefault("marginRegisterLeft", "0"));
+        PipelineParamHandler.marginRegisterUp = Integer.parseInt(config.getOrDefault("marginRegisterUp", "0"));
+        PipelineParamHandler.marginRegisterDown = Integer.parseInt(config.getOrDefault("marginRegisterDown", "0"));
+	}
+    
 	
 	public PipelineParamHandler() {
 	}
@@ -99,9 +112,14 @@ public class PipelineParamHandler {
 		}
 	}
 
-	public PipelineParamHandler(String processingDir) {
-		outputDir=processingDir.replace("\\","/");
+	public PipelineParamHandler(String path) {
+		outputDir=path.replace("\\","/");
 		readParameters();
+	}
+
+	public PipelineParamHandler(String path, double[][] acqTimes) {
+		outputDir=path.replace("\\","/");
+		readParameters(acqTimes);
 	}
 
 	public boolean isSplit() {
@@ -115,7 +133,76 @@ public class PipelineParamHandler {
 	public String[]getImgNames(){
 		return imgNames;
 	}
-	
+
+	public void readParameters(double[][] acqTimes) {
+		System.out.println(new File(outputDir,mainNameCsv).getAbsolutePath());
+		params=VitimageUtils.readStringTabFromCsv(new File(outputDir,mainNameCsv).getAbsolutePath().replace("\\","/"));
+		IJ.log("The main CSV is opened with name : |"+new File(outputDir,mainNameCsv).getAbsolutePath().replace("\\","/")+"|");
+		inventoryDir=getString("inventoryDir");
+		xMinCrop=getInt("xMinCrop");
+		yMinCrop=getInt("yMinCrop");
+		dxCrop=getInt("dxCrop");
+		dyCrop=getInt("dyCrop");
+		typeExp=getString("typeExp");
+		outputDir=getString("outputDir");
+		movieTimeStep=getDouble("movieTimeStep");
+		numberPlantsInBox=getInt("numberPlantsInBox");
+		minSizeCC=getInt("minSizeCC");
+		originalPixelSize=getInt("originalPixelSize");
+		unit=getString("unit");
+		sizeFactorForGraphRendering=getInt("sizeFactorForGraphRendering");
+		rootTissueIntensityLevel=getDouble("rootTissueIntensityLevel");
+		backgroundIntensityLevel=getDouble("backgroundIntensityLevel");
+		minDistanceBetweenLateralInitiation=getDouble("minDistanceBetweenLateralInitiation");
+		minLateralStuckedToOtherLateral=getDouble("minLateralStuckedToOtherLateral");
+		maxSpeedLateral=getDouble("maxSpeedLateral");
+		meanSpeedLateral=getDouble("meanSpeedLateral");
+		typicalSpeed=getDouble("typicalSpeed");
+		penaltyCost=getDouble("penaltyCost");
+		nbMADforOutlierRejection=getDouble("nbMADforOutlierRejection");
+		subsamplingFactor=getInt("subsamplingFactor");
+		nbData=getInt("nbData");
+		typicalHourDelay=getDouble("typicalHourDelay");
+
+		imgNames=new String[nbData];
+		imgSteps=new int[nbData];
+		this.acqTimes=new double[nbData][0];
+		imgSerieSize=new int[nbData];
+
+		for(int i=0;i<nbData;i++) {
+			imgNames[i]=getString("Img_"+i+"_name");
+			imgSteps[i]=getInt("Img_"+i+"_step");
+			IJ.log("We have inventoryDir="+inventoryDir);
+			IJ.log("We have outputDir="+outputDir);
+			System.out.println("And making inventory of |"+new File(inventoryDir,imgNames[i]+".csv").getAbsolutePath().replace("\\","/")+"|");
+			IJ.log("Did inventory of "+(new File(inventoryDir,imgNames[i]+".csv").getAbsolutePath().replace("\\","/")));
+			IJ.log("Testing "+(new File(inventoryDir,imgNames[i]+".csv").getAbsolutePath().replace("\\","/")));
+			/*String[][]paramsImg=VitimageUtils.readStringTabFromCsv(new File(inventoryDir,imgNames[i]+".csv").getAbsolutePath().replace("\\","/") );
+			IJ.log("And the String tab initialized is null ? "+(paramsImg==null));
+			IJ.log("Or it has a number of lines = "+(paramsImg.length));
+			IJ.log("Or imgSerieSize is null ? "+(imgSerieSize==null));
+			IJ.log("Or imgSerieSize len is not good ? ="+(imgSerieSize.length));*/
+			imgSerieSize[i]= acqTimes[i].length;
+			this.acqTimes[i]=new double[imgSerieSize[i]];
+			/*for(int j=0;j<imgSerieSize[i];j++) {
+				acqTimes[i][j]=Double.parseDouble(paramsImg[j+1][2]);
+			}*/
+			this.acqTimes = acqTimes;
+
+		}
+
+		int ind=0;
+		double sum=0;
+		for(int i=0;i<nbData;i++) {
+			for(int j=1;j<imgSerieSize[i];j++) {
+				sum+=acqTimes[i][j]-acqTimes[i][j-1];
+				ind++;
+			}
+		}
+		this.typicalHourDelay=sum/ind;
+
+	}
+
 	public void readParameters() {
 		System.out.println(new File(outputDir,mainNameCsv).getAbsolutePath());
 		params=VitimageUtils.readStringTabFromCsv(new File(outputDir,mainNameCsv).getAbsolutePath().replace("\\","/"));
@@ -145,12 +232,12 @@ public class PipelineParamHandler {
 		subsamplingFactor=getInt("subsamplingFactor");
 		nbData=getInt("nbData");
 		typicalHourDelay=getDouble("typicalHourDelay");
-		
+
 		imgNames=new String[nbData];
 		imgSteps=new int[nbData];
 		acqTimes=new double[nbData][0];
 		imgSerieSize=new int[nbData];
-		
+
 		for(int i=0;i<nbData;i++) {
 			imgNames[i]=getString("Img_"+i+"_name");
 			imgSteps[i]=getInt("Img_"+i+"_step");
@@ -169,7 +256,9 @@ public class PipelineParamHandler {
 			for(int j=0;j<imgSerieSize[i];j++) {
 				acqTimes[i][j]=Double.parseDouble(paramsImg[j+1][2]);
 			}
+
 		}
+
 		int ind=0;
 		double sum=0;
 		for(int i=0;i<nbData;i++) {
@@ -189,8 +278,8 @@ public class PipelineParamHandler {
 	public void getParametersForNewExperiment(){
 		System.out.println(inventoryDir);
 		System.out.println(new File(inventoryDir).exists());
-		for(String s : new File(inventoryDir).list())System.out.println(s);
-		nbData=new File(inventoryDir).list().length-1;
+		for(String s : Objects.requireNonNull(new File(inventoryDir).list()))System.out.println(s);
+		nbData= Objects.requireNonNull(new File(inventoryDir).list()).length-1;
 		if(nbData>MAX_NUMBER_IMAGES) {
 			IJ.showMessage("Critical warning : number of images is too high : "+nbData+" > "+MAX_NUMBER_IMAGES);
 		}
@@ -198,7 +287,8 @@ public class PipelineParamHandler {
 
 	public double[]getHoursExtremities(int indexBox){
 		double[]ret=new double[acqTimes[indexBox].length+1];
-		for(int i=1;i<acqTimes[indexBox].length;i++) ret[i+1]=acqTimes[indexBox][i];
+        if (acqTimes[indexBox].length - 1 >= 0)
+            System.arraycopy(acqTimes[indexBox], 1, ret, 2, acqTimes[indexBox].length - 1);
 		ret[0]=ret[1]-this.typicalHourDelay;
 		return ret;
 	}

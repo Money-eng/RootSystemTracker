@@ -2,9 +2,16 @@ package io.github.rocsg.rootsystemtracker;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import org.apache.commons.io.FileUtils;
 import org.jgrapht.GraphPath;
@@ -33,6 +40,7 @@ import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.plugin.Duplicator;
 import ij.plugin.RGBStackMerge;
+import static io.github.rocsg.rootsystemtracker.PipelineParamHandler.configurePipelineParams;
 
 public class PipelineActionsHandler {
 	public static final int flagFinished=8;
@@ -83,7 +91,6 @@ public class PipelineActionsHandler {
 		}
 	}
 	
-	
 	public static void goOnExperiment(PipelineParamHandler pph) {
 		System.out.println("Going on  !");
 		int[]vals=selectFirstAndLast(pph);
@@ -127,7 +134,6 @@ public class PipelineActionsHandler {
 		pph.writeParameters(false);
 	}
 
-	
 	public static boolean doStepOnImg(int step,int indexImg,PipelineParamHandler pph) {
 		//Where processing data is saved
 		String outputDataDir=new File(pph.outputDir,pph.imgNames[indexImg]).getAbsolutePath();
@@ -150,15 +156,15 @@ public class PipelineActionsHandler {
 		}
 		if(step==5) {//Compute graph
 			t.print("Starting step 5 -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.buildAndProcessGraph(indexImg,outputDataDir,pph);
+			executed=PipelineActionsHandler.buildAndProcessGraph(indexImg, "",outputDataDir,pph);
 		}
 		if(step==6) {//RSML building
 			t.print("Starting step 6 -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.computeRSMLUntilExpertize(indexImg,outputDataDir,pph);
+			executed=PipelineActionsHandler.computeRSMLUntilExpertize(indexImg, "",outputDataDir,pph);
 		}
 		if(step==7) {//RSML building
 			t.print("Starting step 7 -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.computeRSMLAfterExpertize(indexImg,outputDataDir,pph);
+			executed=PipelineActionsHandler.computeRSMLAfterExpertize(indexImg, "",outputDataDir,pph);
 		}
 		if(step==8) {//MovieBuilding -O-
 			t.print("Starting step 8  -  on img "+pph.imgNames[indexImg]);
@@ -173,8 +179,6 @@ public class PipelineActionsHandler {
 		return executed;
 	}
 
-
-	
 	public static boolean stackData(int indexImg,PipelineParamHandler pph) {
 		//Open the csv describing the experience
 		String [][] csvDataExpe=VitimageUtils.readStringTabFromCsv( new File(pph.inventoryDir,"A_main_inventory.csv").getAbsolutePath() );
@@ -393,21 +397,19 @@ public class PipelineActionsHandler {
 		return true;
 	}
 
-
-
-	public static boolean buildAndProcessGraph(int indexImg,String outputDataDir,PipelineParamHandler pph) {
-		ImagePlus imgDates=IJ.openImage( new File(outputDataDir,"40_date_map.tif").getAbsolutePath());
+	public static boolean buildAndProcessGraph(int indexImg, String inputDataDir,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus imgDates=IJ.openImage( new File(inputDataDir,"40_date_map.tif").getAbsolutePath());
 		RegionAdjacencyGraphPipeline.buildAndProcessGraphStraight(imgDates,outputDataDir,pph,indexImg);
 		return true;
 	}
 
-	public static boolean computeRSMLUntilExpertize(int indexImg,String outputDataDir,PipelineParamHandler pph) {
-		ImagePlus mask=IJ.openImage(new File(outputDataDir,"31_mask_at_t1.tif").getAbsolutePath());
+	public static boolean computeRSMLUntilExpertize(int indexImg, String inputDataDir,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus mask=IJ.openImage(new File(inputDataDir,"31_mask_at_t1.tif").getAbsolutePath());
 		mask=MorphoUtils.dilationCircle2D(mask, 9);
-		ImagePlus dates=IJ.openImage(new File(outputDataDir,"40_date_map.tif").getAbsolutePath());
+		ImagePlus dates=IJ.openImage(new File(inputDataDir,"40_date_map.tif").getAbsolutePath());
 		SimpleDirectedWeightedGraph<CC,ConnectionEdge> graph=RegionAdjacencyGraphPipeline.readGraphFromFile(new File(outputDataDir,"50_graph.ser").getAbsolutePath());
 		ImagePlus distOut=MorphoUtils.getDistOut(dates,false);
-		ImagePlus reg=IJ.openImage(new File(outputDataDir,"22_registered_stack.tif").getAbsolutePath());
+		ImagePlus reg=IJ.openImage(new File(inputDataDir,"22_registered_stack.tif").getAbsolutePath());
 
 		RootModel rm=RegionAdjacencyGraphPipeline.refinePlongementOfCCGraph(graph,distOut,pph,indexImg);
 		rm.cleanWildRsml();
@@ -424,12 +426,10 @@ public class PipelineActionsHandler {
 		return true;
 	}
 		
-	public static boolean computeRSMLAfterExpertize(int indexImg,String outputDataDir,PipelineParamHandler pph) {
-		ImagePlus mask=IJ.openImage(new File(outputDataDir,"31_mask_at_t1.tif").getAbsolutePath());
-		mask=MorphoUtils.dilationCircle2D(mask, 9);
-		ImagePlus dates=IJ.openImage(new File(outputDataDir,"40_date_map.tif").getAbsolutePath());
+	public static boolean computeRSMLAfterExpertize(int indexImg, String inputDataDir,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus dates=IJ.openImage(new File(inputDataDir,"40_date_map.tif").getAbsolutePath());
 		SimpleDirectedWeightedGraph<CC,ConnectionEdge> graph=RegionAdjacencyGraphPipeline.readGraphFromFile(new File(outputDataDir,"50_graph.ser").getAbsolutePath());
-		ImagePlus reg=IJ.openImage(new File(outputDataDir,"22_registered_stack.tif").getAbsolutePath());
+		ImagePlus reg=IJ.openImage(new File(inputDataDir,"22_registered_stack.tif").getAbsolutePath());
 
 		RootModel rm=null;
 		if(new File(outputDataDir,"61_graph_expertized.rsml").exists()) {
@@ -460,15 +460,11 @@ public class PipelineActionsHandler {
 		return true;
 	}
 
-	
 	public static boolean extractPhenes(int indexImg,String outputDataDir,PipelineParamHandler pph) {
 		
 		
 		return true;
 	}
-	
-	
-	
 	
 	public static ImagePlus createTimeSequenceSuperposition(ImagePlus imgReg,RootModel rm){
 		ImagePlus[]tabRes=VitimageUtils.stackToSlices(imgReg);
@@ -554,7 +550,6 @@ public class PipelineActionsHandler {
 		}
 		rmInit.writeRSML3D(pathToOutputRsml, "", true,false);
 	}
-
 	
 	//////////////////// HELPERS OF COMPUTEMASKS ////////////////////////
 	public static ImagePlus computeMire(ImagePlus imgIn) {
@@ -611,13 +606,66 @@ public class PipelineActionsHandler {
 		return new ImagePlus [] {img1,img2};
 	}
 
-	public static void main(String[]args) {
-		ImageJ ij=new ImageJ();
-		ImagePlus imgReg=IJ.openImage("/home/rfernandez/Bureau/A_Test/RootSystemTracker/Debug_Amandine_Avril_2023/TEST_230306-CC-CO2/230306-CC-CO2/Processing_of_230306-CC-CO2-COMPIL/230306CC005/11_stack.tif");
-		getMaskOfAreaInterestAtTime(imgReg, 1,true);
+	public static void main(String[] args) {
+		String inputDataDir = null, outputDataDir = null, inventoryOutput = null, acqTimesStr = null;
+		for (String arg : args) {
+			if (arg.startsWith("--input=")) inputDataDir = arg.substring("--input=".length());
+			if (arg.startsWith("--output=")) outputDataDir = arg.substring("--output=".length());
+			if (arg.startsWith("--acqTimes=")) acqTimesStr = arg.substring("--acqTimes=".length());
+		}
+		System.out.println("inputDataDir="+inputDataDir);
+		System.out.println("outputDataDir="+outputDataDir);
+		System.out.println("acqTimesStr="+acqTimesStr);
+		if (inputDataDir == null || outputDataDir == null ||  acqTimesStr == null) {
+			System.out.println("Usage: java ... --input=PATH --output=PATH --inventoryOutput=PATH --acqTimes=CSV_LIST");
+			System.exit(1);
+		}
+		// Parse acqTimes
+		String[] tokens = acqTimesStr.split(",");
+		double[] acqTimes1D = new double[tokens.length];
+		for (int i = 0; i < tokens.length; i++) {
+			acqTimes1D[i] = Double.parseDouble(tokens[i]);
+		}
+		double[][] acqTimes = new double[1][];
+		acqTimes[0] = acqTimes1D;
+
+		PipelineParamHandler pph = new PipelineParamHandler(inputDataDir, acqTimes);
+		//computeMasksAndRemoveLeaves(0,outputDataDir, pph);
+		//spaceTimeMeanShiftSegmentation(0,outputDataDir, pph);
+		buildAndProcessGraph(0, inputDataDir,outputDataDir, pph);
+		computeRSMLUntilExpertize(0, inputDataDir,outputDataDir, pph);
+		//computeRSMLAfterExpertize(0, inputDataDir,outputDataDir, pph);
+		System.exit(0);
 	}
-	
-	
+
+	private static void createOutputDirectory(String path) {
+        File outputFolder = new File(path);
+        if (!outputFolder.exists()) {
+            outputFolder.mkdir();
+        }
+        if (Objects.requireNonNull(outputFolder.list()).length > 0) {
+            try {
+                Files.walkFileTree(outputFolder.toPath(), new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        Files.delete(file);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                        Files.delete(dir);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+                outputFolder.mkdir();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }	
+
+
 	public static ImagePlus getMaskOfAreaInterestAtTime(ImagePlus imgReg,int time,boolean debug) {
 		ImagePlus imgMask1=new Duplicator().run(imgReg,1,1,time,time,1,1);
 		if(debug)imgMask1.duplicate().show();
