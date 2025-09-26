@@ -6,7 +6,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-import io.github.rocsg.fijiyama.common.VitiDialogs;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 import ij.IJ;
 
@@ -37,15 +36,15 @@ public class PipelineParamHandler {
 	double minDistanceBetweenLateralInitiation=4;
 	double minLateralStuckedToOtherLateral=30;
 	public int memorySaving=0;//if 1, don't save very big debug images;
-	static int xMinCrop=122;
-	static int yMinCrop=212;
-	static int dxCrop=1348;
-	static int dyCrop=1166;
-	static int maxLinear=4;
+	static int xMinCrop=600;
+	static int yMinCrop=90;
+	static int dxCrop=1750;
+	static int dyCrop=2100;
+	static int maxLinear=3;
 	String typeExp="Simple";
-	public static int subsamplingFactor=4;
-	static int marginRegisterLeft=12;
-	static int marginRegisterUp=135;
+	public static int subsamplingFactor=1;
+	static int marginRegisterLeft=250;
+	static int marginRegisterUp=100;
 	static int marginRegisterRight=0;
 	static int marginRegisterDown=0;
 	boolean applyFullPipelineImageAfterImage=true;
@@ -55,7 +54,7 @@ public class PipelineParamHandler {
 	public String[] imgTimes;
 	public int[] imgSerieSize;
 	private double[][] acqTimes;
-	public int originalPixelSize=19;//µm
+	public double originalPixelSize=42.33;//µm
 	private String unit="µm";
 	public double typicalHourDelay=8;
 	public int xMinTree=90;//TODO
@@ -148,7 +147,7 @@ public class PipelineParamHandler {
 		movieTimeStep=getDouble("movieTimeStep");
 		numberPlantsInBox=getInt("numberPlantsInBox");
 		minSizeCC=getInt("minSizeCC");
-		originalPixelSize=getInt("originalPixelSize");
+		originalPixelSize=getDouble("originalPixelSize");
 		unit=getString("unit");
 		sizeFactorForGraphRendering=getInt("sizeFactorForGraphRendering");
 		rootTissueIntensityLevel=getDouble("rootTissueIntensityLevel");
@@ -217,7 +216,7 @@ public class PipelineParamHandler {
 		movieTimeStep=getDouble("movieTimeStep");
 		numberPlantsInBox=getInt("numberPlantsInBox");
 		minSizeCC=getInt("minSizeCC");
-		originalPixelSize=getInt("originalPixelSize");
+		originalPixelSize=getDouble("originalPixelSize");
 		unit=getString("unit");
 		sizeFactorForGraphRendering=getInt("sizeFactorForGraphRendering");
 		rootTissueIntensityLevel=getDouble("rootTissueIntensityLevel");
