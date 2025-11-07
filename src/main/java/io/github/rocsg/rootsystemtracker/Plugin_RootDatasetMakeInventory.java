@@ -8,11 +8,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import ij.IJ;
@@ -411,7 +417,160 @@ public class Plugin_RootDatasetMakeInventory  extends PlugInFrame{
 		System.out.println("Inventory of tidy dir ok");
 	}
 
-	
+	 /**
+     * This method starts the inventory process for a directory that is already
+     * tidy, meaning it contains subdirectories each containing a series of images.
+     * <p>
+     * Such that:
+     * InputDir
+     * |_Object1
+     * |__Image1
+     * |__Image2
+     * |__Image3
+     * |_Object2
+     * |__Image1
+     * |__Image2
+     * |__Image3
+     *
+     * @param inputDir0  The directory to create an inventory of.
+     * @param outputDir0 The directory where the inventory will be stored.
+     */
+    public static void startInventoryOfAlreadyTidyDir(String inputDir0, String outputDir0, Map<String, String> map) {
+        String inputDir = inputDir0.replace("\\", File.separator + File.separator).replace("/", File.separator);
+        String outputDir = outputDir0.replace("\\", File.separator + File.separator).replace("/", File.separator);
+        int standartHeight = 0;
+        int standartWidth = 0;
+
+        // List the data
+        String[] spec = new File(inputDir).list(); // List of subdirectories
+        Arrays.sort(Objects.requireNonNull(spec)); // Sort the list of subdirectories
+        int N = spec.length; // Count the number of subdirectories
+        int header = 7; // Header size for the main CSV file
+        LocalDateTime first = null; // First observation time
+        LocalDateTime last = null; // Last observation time
+        String[][] mainCSV = new String[N + header][3]; // Main CSV file
+        mainCSV[2] = new String[]{"Number of different objects", "NA", "NA"}; // Number of different objects
+        mainCSV[3] = new String[]{"Number of different images", "NA", "NA"}; // Number of different images
+        mainCSV[4] = new String[]{"Data dir", inputDir, "NA"}; // Data directory
+        mainCSV[5] = new String[]{"Inventory dir", outputDir, "NA"}; // Inventory directory
+        mainCSV[6] = new String[]{"Misc ", "NA", "NA"}; // Miscellaneous
+        int incrImg = 0; // Incremental image count
+        // For each subdirectory (referred to as an "object"), create a separate CSV
+
+        System.out.println("Recap : " + spec.length + " objects" + " in " + inputDir + " to be processed");
+        // file
+        for (int n = 0; n < N; n++) {
+            // Registered in the old csv
+            mainCSV[7 + n] = new String[]{"Object", "" + n, spec[n]};
+            String[] obs = new File(inputDir, spec[n]).list(); // List of images in the subdirectory
+            System.out.println("File " + new File(inputDir, spec[n]).getAbsolutePath());
+            System.out.println("Processing " + spec[n] + " with " + Objects.requireNonNull(obs).length + " images");
+
+            //obs = sortFilesByModificationOrder(new File(inputDir, spec[n]).getAbsolutePath(), obs);
+            obs = sortFilesByName(new File(inputDir, spec[n]).getAbsolutePath(), obs);
+            int Nobj = obs.length;
+            int[] NobjStack = new int[Nobj];
+            // check if the images are stacks of images or single images
+            int index = 0;
+            for (String ob : obs) {
+                ImagePlus img = IJ.openImage(new File(inputDir, spec[n] + "/" + ob).getAbsolutePath());
+                NobjStack[index] = img.getStackSize();
+                index++;
+            }
+            incrImg += Arrays.stream(NobjStack).sum();
+
+            // Create the new csv
+            String[][] objCSV = new String[Nobj + 1][4];
+            String pathDir = new File(inputDir, spec[n]).getAbsolutePath(); // Path to the subdirectory
+            String path0 = new File(pathDir, obs[0]).getAbsolutePath(); // Path to the first image in the subdirectory
+            objCSV[0] = new String[]{"Num_obs", "DateThour(24h-format)", "Hours_since_series_start",
+                    "Relative_path_to_the_img"};
+            // For each image in the subdirectory, add a row to the CSV file if the image is stacked, iterate over the labels of each stack
+            for (int no = 0; no < Nobj; no++) {
+                String path = new File(pathDir, obs[no]).getAbsolutePath(); //
+                //FileTime ft = getLastModifiedTime(path);
+                ImagePlus img = new ImagePlus(path);
+                standartWidth = img.getWidth();
+                standartHeight = img.getHeight();
+                for (int numStack = 0; numStack < NobjStack[no]; numStack++) {
+                    String rtd = new File(inputDir).getAbsolutePath();
+                    objCSV[no + 1] = new String[]{"" + no, Objects.requireNonNull(img).getStack().getSliceLabel(numStack + 1),
+                            "" + VitimageUtils.dou(hoursBetween(path0, path)),
+                            path.replace(rtd, "").substring(1).replace("\\", File.separator + File.separator).replace("/", File.separator)};
+
+                    // pattern for localdateTime yyyy-mm-ddThh:mm:ss
+                    Pattern pattern = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}");
+                    Matcher matcher = pattern.matcher(Objects.requireNonNull(img).getStack().getSliceLabel(numStack + 1));
+                    if (matcher.find()) {
+                        String dateTime = matcher.group().split("T")[0] + " " + matcher.group().split("T")[1];
+                        LocalDateTime localDateTime = LocalDateTime.parse(dateTime, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                        if (first == null)
+                            first = localDateTime;
+                        if (last == null)
+                            last = localDateTime;
+                        if (Objects.requireNonNull(first).isAfter(localDateTime))
+                            first = localDateTime;
+                        if (Objects.requireNonNull(last).isBefore(localDateTime))
+                            last = localDateTime;
+                    }
+                }
+                VitimageUtils.writeStringTabInCsv2(objCSV,
+                        new File(outputDir, spec[n + no] + ".csv").getAbsolutePath().replace("\\", File.separator + File.separator).replace("/", File.separator)); // Write the CSV file
+                /* OLD
+                String rtd = new File(inputDir).getAbsolutePath();
+                objCSV[no + 1] = new String[]{"" + no, Objects.requireNonNull(ft).toString(),
+                        "" + VitimageUtils.dou(hoursBetween(path0, path)),
+                        path.replace(rtd, "").substring(1).replace("\\", File.separator + File.separator).replace("/", File.separator)};
+                if (first == null)
+                    first = getLastModifiedTime(path);
+                if (last == null)
+                    last = getLastModifiedTime(path);
+                if (Objects.requireNonNull(first).compareTo(ft) > 0)
+                    first = getLastModifiedTime(path);
+                if (Objects.requireNonNull(last).compareTo(ft) < 0)
+                    last = getLastModifiedTime(path);*/
+            }
+        }
+        // Get a subscaling factor for the images (getting close to 2048x2048 if bigger), or oversampling if smaller (inverse)
+        if (standartWidth > 2048 || standartHeight > 2048) { // TODO : chose the best scaling factor
+            map.put("scalingFactor", "" + Double.max(standartWidth, standartHeight) / 2048.0);
+        } else {
+            map.put("scalingFactor", "" + Double.min(standartWidth, standartHeight) / 2048.0);
+        }
+
+        map.put("xMinCrop", "" + (Math.round(PipelineParamHandler.xMinCrop / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("yMinCrop", "" + (Math.round(PipelineParamHandler.yMinCrop / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("dxCrop", "" + (Math.round(PipelineParamHandler.dxCrop / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("dyCrop", "" + (Math.round(PipelineParamHandler.dyCrop / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("marginRegisterLeft", "" + (Math.round(PipelineParamHandler.marginRegisterLeft / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("marginRegisterRight", "" + (Math.round(PipelineParamHandler.marginRegisterRight / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("marginRegisterUp", "" + (Math.round(PipelineParamHandler.marginRegisterUp / Double.parseDouble((map.get("scalingFactor"))))));
+        map.put("marginRegisterDown", "" + (Math.round(PipelineParamHandler.marginRegisterDown / Double.parseDouble((map.get("scalingFactor"))))));
+
+
+        // Update the main CSV file with the total number of objects and images
+        mainCSV[0] = new String[]{"First observation time", Objects.requireNonNull(first).toString(), "NA"};
+        mainCSV[1] = new String[]{"Last observation time", Objects.requireNonNull(last).toString(), "NA"};
+        mainCSV[2][1] = "" + N;
+        mainCSV[3][1] = "" + incrImg;
+        VitimageUtils.writeStringTabInCsv2(mainCSV,
+                new File(outputDir, "A_main_inventory.csv").getAbsolutePath().replace("\\", File.separator + File.separator).replace("/", File.separator));
+        System.out.println("Inventory of tidy dir ok");
+    }
+
+	static String[] sortFilesByName(String parent, String[] tab) {
+        String rdt = new File(parent).getAbsolutePath(); // Without the / at the end
+        String[] ret = Arrays.copyOf(tab, tab.length);
+        // Convert the filenames to File objects
+        File[] fTab = Arrays.stream(ret).map(s -> new File(parent, s)).toArray(File[]::new);
+        // Sort the File objects by their modification time
+        Arrays.sort(fTab, Comparator.comparing(File::getName));
+        // Convert the File objects back to filenames
+        return (Arrays.stream(fTab)).map(File::getAbsolutePath).map(s -> s.replace(rdt, "").substring(1))
+                .toArray(String[]::new);
+
+    }
+
 	/**
 	 * This function is a Dialog utility to get insight from the user about the disposition of the qr codes in images of the dataset.
 	 * The user draw a rectangle around the qr code in the example image, then the function estimate the parameters to know for performing the qr code mining

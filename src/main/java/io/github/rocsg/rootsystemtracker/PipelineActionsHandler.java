@@ -2,14 +2,34 @@ package io.github.rocsg.rootsystemtracker;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.jgrapht.GraphPath;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 
+import ij.IJ;
+import ij.ImageJ;
+import ij.ImagePlus;
+import ij.gui.GenericDialog;
+import ij.plugin.Duplicator;
+import ij.plugin.RGBStackMerge;
 import io.github.rocsg.fijiyama.common.Bord;
 import io.github.rocsg.fijiyama.common.DouglasPeuckerSimplify;
 import io.github.rocsg.fijiyama.common.Pix;
@@ -27,12 +47,6 @@ import io.github.rocsg.rstutils.MorphoUtils;
 import io.github.rocsg.topologicaltracking.CC;
 import io.github.rocsg.topologicaltracking.ConnectionEdge;
 import io.github.rocsg.topologicaltracking.RegionAdjacencyGraphPipeline;
-import ij.IJ;
-import ij.ImageJ;
-import ij.ImagePlus;
-import ij.gui.GenericDialog;
-import ij.plugin.Duplicator;
-import ij.plugin.RGBStackMerge;
 
 public class PipelineActionsHandler {
 	public static final int flagFinished=8;
@@ -44,17 +58,58 @@ public class PipelineActionsHandler {
 	public static final int lastImageToDo=flagLastImage;//flagFinished;
 	public static final int yMaxStamp=50;//TODO. It is relative value Y, after the crop
 	public static Timer t;
+
+	static ItkTransform []trComposed;
+
+	public void run_for_deep(String[] args) {
+		String inputDataDir = null, outputDataDir = null, inventoryOutput = null, acqTimesStr = null;
+		for (String arg : args) {
+			if (arg.startsWith("--input=")) inputDataDir = arg.substring("--input=".length());
+			if (arg.startsWith("--output=")) outputDataDir = arg.substring("--output=".length());
+			if (arg.startsWith("--acqTimes=")) acqTimesStr = arg.substring("--acqTimes=".length());
+		}
+		System.out.println("inputDataDir="+inputDataDir);
+		System.out.println("outputDataDir="+outputDataDir);
+		System.out.println("acqTimesStr="+acqTimesStr);
+		if (inputDataDir == null || outputDataDir == null ||  acqTimesStr == null) {
+			System.out.println("Usage: java ... --input=PATH --output=PATH --inventoryOutput=PATH --acqTimes=CSV_LIST");
+			System.exit(1);
+		}
+		// Parse acqTimes
+		String[] tokens = acqTimesStr.split(",");
+		double[] acqTimes1D = new double[tokens.length];
+		for (int i = 0; i < tokens.length; i++) {
+			acqTimes1D[i] = Double.parseDouble(tokens[i]);
+		}
+		double[][] acqTimes = new double[1][];
+		acqTimes[0] = acqTimes1D;
+
+		PipelineParamHandler pph = new PipelineParamHandler(inputDataDir, acqTimes);
+		//computeMasksAndRemoveLeaves(0,outputDataDir, pph);
+		//spaceTimeMeanShiftSegmentation(0,outputDataDir, pph);
+		buildAndProcessGraph(0, inputDataDir,outputDataDir, pph);
+		computeRSMLUntilExpertize(0, inputDataDir,outputDataDir, pph);
+		//computeRSMLAfterExpertize(0, inputDataDir,outputDataDir, pph);
+		System.exit(0);
+	}
 	
-	
+	public static void main(String[] args) {
+		ImageJ ij=new ImageJ();
+		String inventoryDir = "/home/loai/data/Inventory_of_jean_trap_out/";
+		String outputDir= "/home/loai/data/Processing_of_jean_trap_out/";
+		PipelineParamHandler pph = new PipelineParamHandler(inventoryDir, outputDir);
+		goOnExperiment(pph);
+	}
+
+
 
 	public static int[]selectFirstAndLast(PipelineParamHandler pph){
 		if(VitiDialogs.getYesNoUI("Process everything box after box (select no to refine)?", "Process everything box after box (select no to refine)?"))return new int[] {0,flagFinished,0,pph.nbData-1,0};
 		else{
-			String[]actions=new String[] {"Step 0: setup part 1","Step 1:image stacking","Step 2: stack registration",
-					"Step 3 : mask computation, leaves removal","Step 4: spatio-temporal segmentation",
-					"Step 5 : graph computation","Step 6: RSML building until expertize","Step 7: RSML building after expertize", "Step 8: Movie building"}; 
+			String[]actions=new String[] {"Step 0: setup part 1","Step 1:image stacking","Step 2: stack rigid registration", "Step 3: stack dense registration",
+					"Step 4 : mask computation, leaves removal","Step 5 : spatio-temporal segmentation",
+					"Step 6 : graph computation","Step 7: RSML building until expertize","Step 8: RSML building after expertize", "Step 9: Movie building"}; 
 			String[]order=new String[] {"Box after box","Step after step"};
-			int[]vals=new int[5];
 			GenericDialog gd= new GenericDialog("Expert mode for RootSystemTracker");
             gd.addMessage("Choose the steps to execute");
 			gd.addChoice("First step to run",actions, actions[0]);
@@ -82,7 +137,6 @@ public class PipelineActionsHandler {
 	        return new int[] {st1,st2,im1,im2,ord};
 		}
 	}
-	
 	
 	public static void goOnExperiment(PipelineParamHandler pph) {
 		System.out.println("Going on  !");
@@ -127,7 +181,6 @@ public class PipelineActionsHandler {
 		pph.writeParameters(false);
 	}
 
-	
 	public static boolean doStepOnImg(int step,int indexImg,PipelineParamHandler pph) {
 		//Where processing data is saved
 		String outputDataDir=new File(pph.outputDir,pph.imgNames[indexImg]).getAbsolutePath();
@@ -137,31 +190,35 @@ public class PipelineActionsHandler {
 			executed=PipelineActionsHandler.stackData(indexImg,pph);
 		}
 		if(step==2) {//Registration
-			t.print("Starting step 2, registration -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.registerSerie(indexImg,outputDataDir,pph);
+			t.print("Starting step 2, rigid registration -  on img "+pph.imgNames[indexImg]);
+			executed=PipelineActionsHandler.registerSerieRigid(indexImg,outputDataDir,pph);
 		}
-		if(step==3) {//Compute mask, find leaves falling in the ground and remove them
-			t.print("Starting step 3, masking -  on img "+pph.imgNames[indexImg]);
+		if(step==3) {//Registration
+			t.print("Starting step 3, dense registration -  on img "+pph.imgNames[indexImg]);
+			executed=PipelineActionsHandler.registerSerieDense(indexImg,outputDataDir,pph);
+		}
+		if(step==4) {//Compute mask, find leaves falling in the ground and remove them
+			t.print("Starting step 4, masking -  on img "+pph.imgNames[indexImg]);
 			executed=PipelineActionsHandler.computeMasksAndRemoveLeaves(indexImg,outputDataDir,pph);
 		}
-		if(step==4) {//Compute graph
-			t.print("Starting step 4, space/time segmentation -  on img "+pph.imgNames[indexImg]);
+		if(step==5) {//Compute graph
+			t.print("Starting step 5, space/time segmentation -  on img "+pph.imgNames[indexImg]);
 			executed=PipelineActionsHandler.spaceTimeMeanShiftSegmentation(indexImg,outputDataDir,pph);
 		}
-		if(step==5) {//Compute graph
-			t.print("Starting step 5 -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.buildAndProcessGraph(indexImg,outputDataDir,pph);
-		}
-		if(step==6) {//RSML building
+		if(step==6) {//Compute graph
 			t.print("Starting step 6 -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.computeRSMLUntilExpertize(indexImg,outputDataDir,pph);
+			executed=PipelineActionsHandler.buildAndProcessGraph(indexImg, "",outputDataDir,pph);
 		}
 		if(step==7) {//RSML building
 			t.print("Starting step 7 -  on img "+pph.imgNames[indexImg]);
-			executed=PipelineActionsHandler.computeRSMLAfterExpertize(indexImg,outputDataDir,pph);
+			executed=PipelineActionsHandler.computeRSMLUntilExpertize(indexImg, "",outputDataDir,pph);
 		}
-		if(step==8) {//MovieBuilding -O-
-			t.print("Starting step 8  -  on img "+pph.imgNames[indexImg]);
+		if(step==8) {//RSML building
+			t.print("Starting step 8 -  on img "+pph.imgNames[indexImg]);
+			executed=PipelineActionsHandler.computeRSMLAfterExpertize(indexImg, "",outputDataDir,pph);
+		}
+		if(step==9) {//MovieBuilding -O-
+			t.print("Starting step 9  -  on img "+pph.imgNames[indexImg]);
 			executed=MovieBuilder.buildMovie(indexImg,outputDataDir,pph);
 		}
 		/*
@@ -173,8 +230,6 @@ public class PipelineActionsHandler {
 		return executed;
 	}
 
-
-	
 	public static boolean stackData(int indexImg,PipelineParamHandler pph) {
 		//Open the csv describing the experience
 		String [][] csvDataExpe=VitimageUtils.readStringTabFromCsv( new File(pph.inventoryDir,"A_main_inventory.csv").getAbsolutePath() );
@@ -204,18 +259,21 @@ public class PipelineActionsHandler {
 		return true;
 	}
 	
-	public static boolean registerSerie(int indexImg,String outputDataDir,PipelineParamHandler pph) {
+	public static boolean registerSerieOLD(int indexImg,String outputDataDir,PipelineParamHandler pph) {
 		ImagePlus stack=IJ.openImage(new File(outputDataDir,"11_stack.tif").getAbsolutePath());
+		// convert stack to 32-bit float and crop it - NOTE
+		stack=VitimageUtils.convertToFloat(stack);
 		int N=stack.getStackSize();
 		ImagePlus imgInit2=stack.duplicate();
+		System.out.println(pph.dxCrop+" "+pph.dyCrop+" "+pph.xMinCrop+" "+pph.yMinCrop);
 		ImagePlus imgInit=VitimageUtils.cropImage(imgInit2, pph.xMinCrop,pph.yMinCrop,0,pph.dxCrop,pph.dyCrop,N);
 		ImagePlus imgOut=imgInit.duplicate();
 		IJ.run(imgOut,"32-bit","");
 
-		//Create mask
-		ImagePlus mask=new Duplicator().run(imgInit,1,1,1,1,1,1);
-		mask=VitimageUtils.nullImage(mask);
-		mask=VitimageUtils.drawRectangleInImage(mask, pph.marginRegisterLeft,pph.marginRegisterUp,pph.dxCrop-pph.marginRegisterLeft-pph.marginRegisterRight,pph.dyCrop-1,255);
+		//Create black mask
+		ImagePlus mask = IJ.createImage("mask", "8-bit black", imgInit.getWidth(), imgInit.getHeight(), 1);
+
+		mask = VitimageUtils.drawRectangleInImage(mask, PipelineParamHandler.marginRegisterLeft, PipelineParamHandler.marginRegisterUp, mask.getWidth() - PipelineParamHandler.marginRegisterRight - 1, mask.getHeight() - PipelineParamHandler.marginRegisterDown - 1, 255);
 		IJ.saveAsTiff(mask, new File(outputDataDir,"20_mask_for_registration.tif").getAbsolutePath());
 		
 		ImagePlus []tabImg=VitimageUtils.stackToSlices(imgInit);
@@ -230,22 +288,22 @@ public class PipelineActionsHandler {
 		//First step : daisy-chain rigid registration
 		Timer t=new Timer();
 		t.log("Starting registration");
-		for(int n=0;(n<N-1);n++) {
+		for (int n=0;(n<N-1);n++) {
 			t.log("n="+n);
 			ItkTransform trRoot=null;
 			RegistrationAction regAct=new RegistrationAction().defineSettingsFromTwoImages(tabImg[n],tabImg[n+1],null,false);
 			regAct.setLevelMaxLinear(pph.maxLinear);
 			regAct.setLevelMinLinear(0);
-			regAct.strideX=8;
-			regAct.strideY=8;
-			regAct.neighX=3;
-			regAct.neighY=3;
+			regAct.strideX=2;
+			regAct.strideY=2;
+			regAct.neighX=4;
+			regAct.neighY=4;
 			regAct.selectLTS=90;
-			regAct.setIterationsBM(8);
+			regAct.setIterationsBM(10);
 			BlockMatchingRegistration bm= BlockMatchingRegistration.setupBlockMatchingRegistration(tabImgSmall[n+1], tabImgSmall[n], regAct);
 			bm.mask=mask.duplicate();
 		    bm.defaultCoreNumber=VitimageUtils.getNbCores();
-		    bm.minBlockVariance/=4;
+		    bm.minBlockVariance/=1;
 		    boolean viewRegistrations=false;//Useful for debugging
 			if(viewRegistrations) {
 				bm.displayRegistration=2;
@@ -300,7 +358,7 @@ public class PipelineActionsHandler {
 		    bm2.minBlockVariance=10;
 		    bm2.minBlockScore=0.10;
 		    bm2.displayR2=false;
-		    boolean viewRegistrations=false;
+		    boolean viewRegistrations=true;
 			if(viewRegistrations) {
 				bm2.displayRegistration=2;
 				bm2.adjustZoomFactor(512.0/tabImg[n1].getWidth());
@@ -321,6 +379,219 @@ public class PipelineActionsHandler {
 		return true;
 	}	
 	
+	public static boolean registerSerieRigid(int indexImg,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus stack=IJ.openImage(new File(outputDataDir,"11_stack.tif").getAbsolutePath());
+		// convert stack to 32-bit float and crop it - NOTE
+		stack=VitimageUtils.convertToFloat(stack);
+		int N=stack.getStackSize();
+		ImagePlus imgInit2=stack.duplicate();
+		System.out.println(pph.dxCrop+" "+pph.dyCrop+" "+pph.xMinCrop+" "+pph.yMinCrop);
+		ImagePlus imgInit=VitimageUtils.cropImage(imgInit2, pph.xMinCrop,pph.yMinCrop,0,pph.dxCrop,pph.dyCrop,N);
+
+		//Create black mask
+		ImagePlus mask = IJ.createImage("mask", "8-bit black", imgInit.getWidth(), imgInit.getHeight(), 1);
+
+		mask = VitimageUtils.drawRectangleInImage(mask, PipelineParamHandler.marginRegisterLeft, PipelineParamHandler.marginRegisterUp, mask.getWidth() - PipelineParamHandler.marginRegisterRight - 1, mask.getHeight() - PipelineParamHandler.marginRegisterDown - 1, 255);
+		IJ.saveAsTiff(mask, new File(outputDataDir,"20_mask_for_registration.tif").getAbsolutePath());
+		
+		ImagePlus []tabImg=VitimageUtils.stackToSlices(imgInit);
+		ImagePlus []tabImgSmall=VitimageUtils.stackToSlices(imgInit);
+		ItkTransform []tr=new ItkTransform[N];
+		trComposed=new ItkTransform[N];
+		for(int i=0;i<tabImgSmall.length;i++) {
+			tabImgSmall[i]=VitimageUtils.cropImage(tabImgSmall[i], 0, 0,0, tabImgSmall[i].getWidth(),(tabImgSmall[i].getHeight()*2)/3,1);
+		}
+
+		//First step : daisy-chain rigid registration
+		Timer t=new Timer();
+		t.log("Starting registration");
+		for (int n=0;(n<N-1);n++) {
+			t.log("n="+n);
+			ItkTransform trRoot=null;
+			RegistrationAction regAct=new RegistrationAction().defineSettingsFromTwoImages(tabImg[n],tabImg[n+1],null,false);
+			regAct.setLevelMaxLinear(pph.maxLinear);
+			regAct.setLevelMinLinear(0);
+			regAct.strideX=2;
+			regAct.strideY=2;
+			regAct.neighX=4;
+			regAct.neighY=4;
+			regAct.selectLTS=90;
+			regAct.setIterationsBM(10);
+			BlockMatchingRegistration bm= BlockMatchingRegistration.setupBlockMatchingRegistration(tabImgSmall[n+1], tabImgSmall[n], regAct);
+			bm.mask=mask.duplicate();
+		    bm.defaultCoreNumber=VitimageUtils.getNbCores();
+		    bm.minBlockVariance/=1;
+		    boolean viewRegistrations=false;//Useful for debugging
+			if(viewRegistrations) {
+				bm.displayRegistration=2;
+				bm.adjustZoomFactor(((512.0))/tabImg[n].getWidth());
+				bm.flagSingleView=true;
+			}
+			bm.displayR2=false;
+		    tr[n]=bm.runBlockMatching(trRoot, false);		
+		    if(viewRegistrations) {
+		    	bm.closeLastImages();
+		    	bm.freeMemory();
+		    }
+		}
+		
+		for(int n1=0;n1<N-1;n1++) {
+			trComposed[n1]=new ItkTransform(tr[n1]);
+			for(int n2=n1+1;n2<N-1;n2++) {
+				trComposed[n1].addTransform(tr[n2]);
+			}
+			tabImg[n1]=trComposed[n1].transformImage(tabImg[n1], tabImg[n1]);
+		}
+
+		ImagePlus result1=VitimageUtils.slicesToStack(tabImg);
+		result1.setTitle("step 1");
+		IJ.saveAsTiff(result1, new File(outputDataDir,"21_midterm_registration.tif").getAbsolutePath());
+
+        String transformPath1 = outputDataDir + File.separator + "Transforms_rigid";
+        File transformFolder1 = new File(transformPath1);
+        if (!transformFolder1.exists()) {
+            transformFolder1.mkdir();
+        }
+        for (int n1=0;n1<N-1;n1++) {
+            System.out.println("Writing transform to file: " + transformPath1);
+            System.out.println("Transform" + n1 + ":" + trComposed[n1]);
+            trComposed[n1].writeMatrixTransformToFile(transformPath1 + File.separator + "transform_" + n1 + ".txt");
+        }
+
+		return true;
+	}	
+
+	public static boolean registerSerieDense(int indexImg,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus stack=IJ.openImage(new File(outputDataDir,"11_stack.tif").getAbsolutePath());
+		// convert stack to 32-bit float and crop it - NOTE
+		stack=VitimageUtils.convertToFloat(stack);
+		int N=stack.getStackSize();
+		ImagePlus imgInit2=stack.duplicate();
+		ImagePlus imgInit=VitimageUtils.cropImage(imgInit2, pph.xMinCrop,pph.yMinCrop,0,pph.dxCrop,pph.dyCrop,N);
+
+		//Create white mask
+		ImagePlus mask = IJ.createImage("mask", "8-bit white", imgInit.getWidth(), imgInit.getHeight(), 1);
+		IJ.saveAsTiff(mask, new File(outputDataDir,"20_dense_mask_for_registration.tif").getAbsolutePath());
+		
+
+		// trComposed
+		System.out.println(trComposed);
+		System.out.println(trComposed==null);
+		if (trComposed == null || trComposed.length != N) {
+			System.out.println("machin");
+		    trComposed = readTransforms(outputDataDir + File.separator + "Transforms_rigid");
+		}
+
+		// tabImages
+		ImagePlus []tabImg=VitimageUtils.stackToSlices(IJ.openImage(new File(outputDataDir,"21_midterm_registration.tif").getAbsolutePath()));
+		ImagePlus []tabImg2=VitimageUtils.stackToSlices(imgInit);
+
+		//Second step : daisy-chain dense registration  
+		ImagePlus result2=null;
+		ArrayList<ImagePlus>listAlreadyRegistered=new ArrayList<ImagePlus>();
+		ImagePlus[] imageRefRecc = new ImagePlus[N - 1];
+		listAlreadyRegistered.add(tabImg2 [N-1]);
+		for(int n1=N-2;n1>=0;n1--) {
+			ImagePlus imgRef=listAlreadyRegistered.get(listAlreadyRegistered.size()-1);
+			imageRefRecc[n1] = imgRef;
+			RegistrationAction regAct2=new RegistrationAction().defineSettingsFromTwoImages(tabImg[0],tabImg[0],null,false);				
+			regAct2.setLevelMaxNonLinear(1);
+			regAct2.setLevelMinNonLinear(-1);
+			regAct2.setIterationsBMNonLinear(4);
+			regAct2.typeTrans=Transform3DType.DENSE;
+			regAct2.strideX=4;
+			regAct2.strideY=4;
+			regAct2.neighX=2;
+			regAct2.neighY=2;
+			regAct2.bhsX-=3;
+			regAct2.bhsY-=3;
+			regAct2.sigmaDense/=6;
+			regAct2.selectLTS=80;
+			BlockMatchingRegistration bm2= BlockMatchingRegistration.setupBlockMatchingRegistration(imgRef, tabImg2[n1], regAct2);
+			bm2.mask=mask.duplicate();
+		    bm2.defaultCoreNumber=VitimageUtils.getNbCores();
+		    bm2.minBlockVariance=10;
+		    bm2.minBlockScore=0.10;
+		    bm2.displayR2=false;
+		    boolean viewRegistrations=false;
+			if(viewRegistrations) {
+				bm2.displayRegistration=2;
+				bm2.adjustZoomFactor(512.0/tabImg[n1].getWidth());
+			}
+
+			trComposed[n1]=bm2.runBlockMatching(trComposed[n1], false);			
+
+			if(viewRegistrations) {
+			    bm2.closeLastImages();
+			    bm2.freeMemory();
+			}
+			tabImg[n1]=trComposed[n1].transformImage(tabImg2[n1], tabImg2[n1]);
+			listAlreadyRegistered.add(tabImg[n1]);
+		}
+		result2=VitimageUtils.slicesToStack(tabImg);
+		result2.setTitle("Registered stack");
+		IJ.saveAsTiff(result2, new File(outputDataDir,"22_registered_stack.tif").getAbsolutePath());
+	 	
+		String transformPath2 = outputDataDir + File.separator + "Transforms_dense";
+        File transformFolder2 = new File(transformPath2);
+        if (!transformFolder2.exists()) {
+            transformFolder2.mkdir();
+        }
+        int count = 0;
+
+        for (ItkTransform itkTransform : trComposed) {
+            if (itkTransform == null) continue;
+            System.out.println("Writing transform to file: " + transformPath2);
+            System.out.println("Transform" + count + ":" + itkTransform);
+
+            if (itkTransform.isDense()) {
+                itkTransform.writeAsDenseField(transformPath2 + File.separator + "transform_" + (count + 1) + ".txt", imageRefRecc[count]);
+            } else {
+                itkTransform.writeMatrixTransformToFile(transformPath2 + File.separator + "transform_" + (count + 1) + ".txt");
+            }
+            count++;
+        }
+		return true;
+	}
+
+ 	private static ItkTransform[] readTransforms(String transformPath) {
+
+		System.out.println("Reading transforms from: " + transformPath);
+        
+		// list files in directory
+		File dir = new File(transformPath);
+		File[] files = dir.listFiles((d, name) -> name.endsWith(".txt"));
+
+		// order files by index in filename
+		Arrays.sort(files, Comparator.comparingInt(f -> {
+			String fileName = f.getName();
+			int indexStart = fileName.indexOf('_') + 1;
+			int indexEnd = fileName.lastIndexOf('.');
+			try {
+				return Integer.parseInt(fileName.substring(indexStart, indexEnd));
+			} catch (NumberFormatException e) {
+				return Integer.MAX_VALUE; // put invalid files at the end
+			}
+		}));
+		
+		System.out.println("Found " + files.length + " transform files.");
+		System.out.println("Files: " + Arrays.toString(Arrays.stream(files).map(File::getName).toArray()));
+
+		// load itk transforms
+		ItkTransform[] transforms = new ItkTransform[files.length];
+		for (int i = 0; i < files.length; i++) {
+			try {
+				System.out.println("Reading transform from file: " + files[i].getName());
+				transforms[i] = ItkTransform.readTransformFromFile(files[i].getAbsolutePath());
+			} catch (Exception e) {
+				System.err.println("Error reading transform from file: " + files[i].getName());
+			}
+		}
+		return transforms;
+
+        
+	}
+
 	public static boolean computeMasksAndRemoveLeaves(int indexImg,String outputDataDir,PipelineParamHandler pph) {
 		ImagePlus imgReg=IJ.openImage(new File(outputDataDir,"22_registered_stack.tif").getAbsolutePath());
 		ImagePlus imgMask1=getMaskOfAreaInterestAtTime(imgReg, 1,false);
@@ -393,21 +664,19 @@ public class PipelineActionsHandler {
 		return true;
 	}
 
-
-
-	public static boolean buildAndProcessGraph(int indexImg,String outputDataDir,PipelineParamHandler pph) {
-		ImagePlus imgDates=IJ.openImage( new File(outputDataDir,"40_date_map.tif").getAbsolutePath());
+	public static boolean buildAndProcessGraph(int indexImg, String inputDataDir,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus imgDates=IJ.openImage( new File(inputDataDir,"40_date_map.tif").getAbsolutePath());
 		RegionAdjacencyGraphPipeline.buildAndProcessGraphStraight(imgDates,outputDataDir,pph,indexImg);
 		return true;
 	}
 
-	public static boolean computeRSMLUntilExpertize(int indexImg,String outputDataDir,PipelineParamHandler pph) {
-		ImagePlus mask=IJ.openImage(new File(outputDataDir,"31_mask_at_t1.tif").getAbsolutePath());
+	public static boolean computeRSMLUntilExpertize(int indexImg, String inputDataDir,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus mask=IJ.openImage(new File(inputDataDir,"31_mask_at_t1.tif").getAbsolutePath());
 		mask=MorphoUtils.dilationCircle2D(mask, 9);
-		ImagePlus dates=IJ.openImage(new File(outputDataDir,"40_date_map.tif").getAbsolutePath());
+		ImagePlus dates=IJ.openImage(new File(inputDataDir,"40_date_map.tif").getAbsolutePath());
 		SimpleDirectedWeightedGraph<CC,ConnectionEdge> graph=RegionAdjacencyGraphPipeline.readGraphFromFile(new File(outputDataDir,"50_graph.ser").getAbsolutePath());
 		ImagePlus distOut=MorphoUtils.getDistOut(dates,false);
-		ImagePlus reg=IJ.openImage(new File(outputDataDir,"22_registered_stack.tif").getAbsolutePath());
+		ImagePlus reg=IJ.openImage(new File(inputDataDir,"22_registered_stack.tif").getAbsolutePath());
 
 		RootModel rm=RegionAdjacencyGraphPipeline.refinePlongementOfCCGraph(graph,distOut,pph,indexImg);
 		rm.cleanWildRsml();
@@ -424,12 +693,10 @@ public class PipelineActionsHandler {
 		return true;
 	}
 		
-	public static boolean computeRSMLAfterExpertize(int indexImg,String outputDataDir,PipelineParamHandler pph) {
-		ImagePlus mask=IJ.openImage(new File(outputDataDir,"31_mask_at_t1.tif").getAbsolutePath());
-		mask=MorphoUtils.dilationCircle2D(mask, 9);
-		ImagePlus dates=IJ.openImage(new File(outputDataDir,"40_date_map.tif").getAbsolutePath());
+	public static boolean computeRSMLAfterExpertize(int indexImg, String inputDataDir,String outputDataDir,PipelineParamHandler pph) {
+		ImagePlus dates=IJ.openImage(new File(inputDataDir,"40_date_map.tif").getAbsolutePath());
 		SimpleDirectedWeightedGraph<CC,ConnectionEdge> graph=RegionAdjacencyGraphPipeline.readGraphFromFile(new File(outputDataDir,"50_graph.ser").getAbsolutePath());
-		ImagePlus reg=IJ.openImage(new File(outputDataDir,"22_registered_stack.tif").getAbsolutePath());
+		ImagePlus reg=IJ.openImage(new File(inputDataDir,"22_registered_stack.tif").getAbsolutePath());
 
 		RootModel rm=null;
 		if(new File(outputDataDir,"61_graph_expertized.rsml").exists()) {
@@ -460,15 +727,11 @@ public class PipelineActionsHandler {
 		return true;
 	}
 
-	
 	public static boolean extractPhenes(int indexImg,String outputDataDir,PipelineParamHandler pph) {
 		
 		
 		return true;
 	}
-	
-	
-	
 	
 	public static ImagePlus createTimeSequenceSuperposition(ImagePlus imgReg,RootModel rm){
 		ImagePlus[]tabRes=VitimageUtils.stackToSlices(imgReg);
@@ -554,7 +817,6 @@ public class PipelineActionsHandler {
 		}
 		rmInit.writeRSML3D(pathToOutputRsml, "", true,false);
 	}
-
 	
 	//////////////////// HELPERS OF COMPUTEMASKS ////////////////////////
 	public static ImagePlus computeMire(ImagePlus imgIn) {
@@ -611,13 +873,34 @@ public class PipelineActionsHandler {
 		return new ImagePlus [] {img1,img2};
 	}
 
-	public static void main(String[]args) {
-		ImageJ ij=new ImageJ();
-		ImagePlus imgReg=IJ.openImage("/home/rfernandez/Bureau/A_Test/RootSystemTracker/Debug_Amandine_Avril_2023/TEST_230306-CC-CO2/230306-CC-CO2/Processing_of_230306-CC-CO2-COMPIL/230306CC005/11_stack.tif");
-		getMaskOfAreaInterestAtTime(imgReg, 1,true);
-	}
-	
-	
+	private static void createOutputDirectory(String path) {
+        File outputFolder = new File(path);
+        if (!outputFolder.exists()) {
+            outputFolder.mkdir();
+        }
+        if (Objects.requireNonNull(outputFolder.list()).length > 0) {
+            try {
+                Files.walkFileTree(outputFolder.toPath(), new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        Files.delete(file);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                        Files.delete(dir);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+                outputFolder.mkdir();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }	
+
+
 	public static ImagePlus getMaskOfAreaInterestAtTime(ImagePlus imgReg,int time,boolean debug) {
 		ImagePlus imgMask1=new Duplicator().run(imgReg,1,1,time,time,1,1);
 		if(debug)imgMask1.duplicate().show();
