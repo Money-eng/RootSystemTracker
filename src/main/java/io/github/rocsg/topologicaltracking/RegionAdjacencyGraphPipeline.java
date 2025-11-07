@@ -5,8 +5,8 @@ import ij.ImagePlus;
 import ij.gui.Roi;
 import io.github.rocsg.fijiyama.common.*;
 import io.github.rocsg.fijiyama.registration.TransformUtils;
-import io.github.rocsg.rsml.Root;
-import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsml.RSML2DplusT.Root;
+import io.github.rocsg.rsml.RSML2DplusT.RootModel;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
 import io.github.rocsg.rstutils.HungarianAlgorithm;
 import io.github.rocsg.rstutils.MorphoUtils;
@@ -261,9 +261,9 @@ public class RegionAdjacencyGraphPipeline {
     }
 
 
-    /////////////////////////////////
-    ///// BELOW IS SAFE ZONE ////////
-    /////////////////////////////////
+    /// //////////////////////////////
+    /// // BELOW IS SAFE ZONE ////////
+    /// //////////////////////////////
     public static RootModel refinePlongementOfCCGraph(SimpleDirectedWeightedGraph<CC, ConnectionEdge> graph,
                                                       ImagePlus distOut, PipelineParamHandler pph, int indexImg) {
         System.out.println("Running the plongement");
@@ -2359,10 +2359,10 @@ public class RegionAdjacencyGraphPipeline {
      * It takes an ImagePlus object, a directory path for output data, a PipelineParamHandler object, and an index box as inputs.
      * It returns a boolean value indicating the success of the operation.
      *
-     * @param imgDatesTmp The ImagePlus object that contains the image data to be processed.
+     * @param imgDatesTmp   The ImagePlus object that contains the image data to be processed.
      * @param outputDataDir The directory path where the output data will be stored.
-     * @param pph The PipelineParamHandler object that contains the parameters for the pipeline.
-     * @param indexBox The index of the box in the pipeline.
+     * @param pph           The PipelineParamHandler object that contains the parameters for the pipeline.
+     * @param indexBox      The index of the box in the pipeline.
      * @return boolean Returns true if the operation is successful, false otherwise.
      */
     public static boolean buildAndProcessGraphStraight(ImagePlus imgDatesTmp, String outputDataDir,

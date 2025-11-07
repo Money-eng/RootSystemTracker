@@ -4,8 +4,8 @@ import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
-import io.github.rocsg.rsml.Root;
-import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsml.RSML2DplusT.Root;
+import io.github.rocsg.rsml.RSML2DplusT.RootModel;
 import io.github.rocsg.rstplugin.MovieBuilder;
 import io.github.rocsg.rstplugin.PipelineActionsHandler;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.runners.MethodSorters;
 
 import java.io.File;
-import java.util.Objects;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING) // force name ordering
 public class TestRootSystemTracker {

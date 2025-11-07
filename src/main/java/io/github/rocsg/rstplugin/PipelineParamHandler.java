@@ -25,11 +25,11 @@ public class PipelineParamHandler {
     static int yMinCrop = (int) (350.0 / subsamplingFactor);
     static int dxCrop = (int) ((int) (10620.0 - 1400.0) / subsamplingFactor);
     static int dyCrop = (int) ((int) (8783.0 - 350.0) / subsamplingFactor);
+    static int marginRegisterDown = dyCrop - 1;
     // Margin for registration
     static int marginRegisterLeft = (int) ((int) 20.0 / subsamplingFactor);
     static int marginRegisterUp = (int) ((int) (1341.0 - 350.0) / subsamplingFactor);
     static int marginRegisterRight = (int) ((int) 20.0 / subsamplingFactor);
-    static int marginRegisterDown = dyCrop - 1;
     // Name of the main CSV file
     public final String mainNameCsv = "InfoSerieRootSystemTracker.csv";
     // Number of plants in the box
@@ -168,6 +168,7 @@ public class PipelineParamHandler {
 
     /**
      * Configuration function for testing
+     *
      * @param config The configuration map
      */
     public static void configurePipelineParams(Map<String, String> config) {
@@ -186,6 +187,14 @@ public class PipelineParamHandler {
     }
 
     //// Methods
+
+    public static int getyMinCrop() {
+        return yMinCrop;
+    }
+
+    public static int getxMinCrop() {
+        return xMinCrop;
+    }
 
     /**
      * Method to run the cleaning assistant
@@ -207,13 +216,11 @@ public class PipelineParamHandler {
         return typeExp.contains("Split_V01");
     }
 
-
     public boolean isGaps() {
-        
+
         return typeExp.contains("HaveNoSurface_");
 
     }
-
 
     public String[] getImgNames() {
         return imgNames;
@@ -308,7 +315,7 @@ public class PipelineParamHandler {
         this.typicalHourDelay = sum / ind;
     }
 
-    ///// Additions
+    /// // Additions
 
     public void addParam(String tit, String val, String info) {
         params[nParams++] = new String[]{tit, val, info};
@@ -317,6 +324,8 @@ public class PipelineParamHandler {
     public void addParam(String tit, double val, String info) {
         params[nParams++] = new String[]{tit, "" + val, info};
     }
+
+    //// Getters and Setters
 
     public void addParam(String tit, int val, String info) {
         params[nParams++] = new String[]{tit, "" + val, info};
@@ -368,8 +377,6 @@ public class PipelineParamHandler {
         addParam("typeExp", typeExp, "-");
         addParam("movieTimeStep", movieTimeStep, "-");
     }
-
-    //// Getters and Setters
 
     /**
      * Method to set parameters from a file
@@ -493,14 +500,6 @@ public class PipelineParamHandler {
                 return Integer.parseInt(param[1]);
         IJ.showMessage("Parameter not found : " + tit + " in param file of " + outputDir);
         return NO_PARAM_INT;
-    }
-
-    public static int getyMinCrop() {
-        return yMinCrop;
-    }
-
-    public static int getxMinCrop() {
-        return xMinCrop;
     }
 
 }

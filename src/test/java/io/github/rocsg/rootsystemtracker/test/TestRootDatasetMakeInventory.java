@@ -1,8 +1,7 @@
 package io.github.rocsg.rootsystemtracker.test;
 
-import org.junit.jupiter.api.Test;
-
 import io.github.rocsg.rstplugin.Plugin_RootDatasetMakeInventory;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,13 +13,14 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 
 public class TestRootDatasetMakeInventory {
-    public static boolean doNotDoTests=false;
+    public static boolean doNotDoTests = false;
+
     public TestRootDatasetMakeInventory() {
     }
 
     @Test
     void globalTestNoRun() {
-        if(doNotDoTests)return;// print current directory
+        if (doNotDoTests) return;// print current directory
         System.out.println("Current directory: " + System.getProperty("user.dir"));
 
         // Define the path to the output folder

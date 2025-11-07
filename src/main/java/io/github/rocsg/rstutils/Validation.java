@@ -6,7 +6,7 @@ import ij.ImagePlus;
 import ij.plugin.Duplicator;
 import ij.plugin.frame.PlugInFrame;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
-import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsml.RSML2DplusT.RootModel;
 
 public class Validation extends PlugInFrame {
     private static final long serialVersionUID = 1L;

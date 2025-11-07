@@ -24,7 +24,6 @@ import java.util.stream.IntStream;
  * CC stands for connexe conections. It is a class that represents a connected component in the context of the
  * topological tracking of roots. It is used to represent the nodes of the graph that is used to represent the
  * connections between the connected components of the roots.
-
  */
 public class CC implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -178,13 +177,13 @@ public class CC implements Serializable {
     }
 
     public double getConnexionScore(CC cc, double x, double y, double expectedX, double expectedY, boolean debug,
-									double vx, double vy) {
+                                    double vx, double vy) {
         double[] vectFace = new double[]{vx, vy, 0};
         double[] vectDays = new double[]{cc.x() - this.x(), cc.y() - this.y(), 0};
         double score0 =
-				TransformUtils.scalarProduct(vectFace, vectDays) / (TransformUtils.norm(vectFace) * TransformUtils.norm(vectDays));
+                TransformUtils.scalarProduct(vectFace, vectDays) / (TransformUtils.norm(vectFace) * TransformUtils.norm(vectDays));
         double score1 = VitimageUtils.distance(this.x(), this.y(), x, y) - VitimageUtils.distance(cc.x(), cc.y(), x,
-				y);//Foster being nearer to destination
+                y);//Foster being nearer to destination
         double cost1 = VitimageUtils.distance(expectedX, expectedY, x, y);//Foster being near the expected point
         double score2 = 1E8;
         for (double dx = -10; dx <= 10; dx += 0.5)
@@ -195,7 +194,7 @@ public class CC implements Serializable {
             }
         if (debug)
             System.out.println(("X=" + x + " Y=" + y + " Total=" + (2 * score0/*+score1-cost1*/ + 2 * score2) + " " +
-					"score0=" + score0 + "  score1=" + score1 + " cost1=" + cost1 + " score2=" + score2 + " with exp=" + expectedX + "," + expectedY));
+                    "score0=" + score0 + "  score1=" + score1 + " cost1=" + cost1 + " score2=" + score2 + " with exp=" + expectedX + "," + expectedY));
         return (2 * score0 +/*score1-cost1*/+2 * score2);
     }
 
@@ -894,9 +893,9 @@ public class CC implements Serializable {
      * The graph is represented by pixels and the shortest path is determined based on the distance to the exterior.
      * The method also handles the case where the path determination is for a lateral root connected to the trunk.
      *
-     * @param coordStart An array of two integers representing the x and y coordinates of the start point.
-     * @param coordStop An array of two integers representing the x and y coordinates of the stop point.
-     * @param connexity An integer representing the connexity of the graph.
+     * @param coordStart                                  An array of two integers representing the x and y coordinates of the start point.
+     * @param coordStop                                   An array of two integers representing the x and y coordinates of the stop point.
+     * @param connexity                                   An integer representing the connexity of the graph.
      * @param setHereNextCCIfItIsLatDeterminationForTrunk A CC object representing the next connected component if the path determination is for a lateral root. If it's null, the path determination is for the main trunk.
      * @return A list of Pix objects representing the shortest path from the start point to the stop point.
      */
@@ -1023,7 +1022,7 @@ public class CC implements Serializable {
         if (graph.outgoingEdgesOf(this).size() > 0) {
             for (ConnectionEdge edge : graph.outgoingEdgesOf(this)) {
                 double val =
-						graph.getEdgeTarget(edge).count * 1.0 / (VitimageUtils.EPSILON + 1 + graph.getEdgeWeight(edge));
+                        graph.getEdgeTarget(edge).count * 1.0 / (VitimageUtils.EPSILON + 1 + graph.getEdgeWeight(edge));
                 if (val < 0) {
                     System.out.println("En prison ! " + val);
                 }

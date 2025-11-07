@@ -13,9 +13,9 @@ import io.github.rocsg.fijiyama.fijiyamaplugin.RegistrationAction;
 import io.github.rocsg.fijiyama.registration.BlockMatchingRegistration;
 import io.github.rocsg.fijiyama.registration.ItkTransform;
 import io.github.rocsg.fijiyama.registration.Transform3DType;
-import io.github.rocsg.rsml.Node;
-import io.github.rocsg.rsml.Root;
-import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsml.RSML2DplusT.Node;
+import io.github.rocsg.rsml.RSML2DplusT.Root;
+import io.github.rocsg.rsml.RSML2DplusT.RootModel;
 import io.github.rocsg.rstutils.MorphoUtils;
 import io.github.rocsg.topologicaltracking.CC;
 import io.github.rocsg.topologicaltracking.ConnectionEdge;
@@ -24,6 +24,8 @@ import org.apache.commons.io.FileUtils;
 import org.itk.simple.SmoothingRecursiveGaussianImageFilter;
 import org.jgrapht.GraphPath;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -61,6 +63,7 @@ public class PipelineActionsHandler {
     private static final String outputFolder = "D:\\loaiu\\MAM5\\Stage\\data\\Test\\Output\\";
     private static final String outputFolderProcess = "D:\\loaiu\\MAM5\\Stage\\data\\Test\\Output\\Process\\";
     private static final String inventoryFolder = "D:\\loaiu\\MAM5\\Stage\\data\\Test\\Output\\Inventory\\";
+    private static final Logger log = LoggerFactory.getLogger(PipelineActionsHandler.class);
     // Timer object for tracking time-related operations in the pipeline
     public static Timer t;
 
@@ -157,7 +160,7 @@ public class PipelineActionsHandler {
             itkGauss.delete();
         } catch (UnsatisfiedLinkError e) {
             System.err.println("La bibliothèque SimpleITKJava ne s'est pas chargée");
-            System.err.println(e);
+            log.error(String.valueOf(e));
             System.exit(0);
         }
     }
@@ -472,7 +475,7 @@ public class PipelineActionsHandler {
         ImagePlus mask = new Duplicator().run(imgInit, 1, 1, 1, 1, 1, 1);
         /*mask = VitimageUtils.nullImage(mask);
         mask = VitimageUtils.drawRectangleInImage(mask, 0, 0, mask.getWidth() - 1, mask.getHeight() - 1, 255);*/
-        mask =new ImagePlus("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\20_mask_for_registration.tif");
+        mask = new ImagePlus("D:\\loaiu\\MAM5\\Stage\\data\\UC3\\Rootsystemtracker\\Output_Data\\Process\\B73_R04_01\\20_mask_for_registration.tif");
         // invert the mask
         IJ.saveAsTiff(mask, new File(outputDataDir, "20_mask_for_registration.tif").getAbsolutePath());
 
@@ -492,7 +495,7 @@ public class PipelineActionsHandler {
 
         //First step : daisy-chain rigid registration
         Timer t = new Timer();
-        /*t.log("Starting registration");
+        t.log("Starting registration");
         for (int n = 0; (n < N - 1); n++) {
             t.log("n=" + n);
             ItkTransform trRoot = null;
@@ -534,7 +537,7 @@ public class PipelineActionsHandler {
 
         ImagePlus result1 = VitimageUtils.slicesToStack(tabImg);
         result1.setTitle("step 1");
-        IJ.saveAsTiff(result1, new File(outputDataDir, "21_midterm_registration.tif").getAbsolutePath());*/
+        IJ.saveAsTiff(result1, new File(outputDataDir, "21_midterm_registration.tif").getAbsolutePath());
 
 
         // save transform in .txt file i n a folder (Transforms_1)
@@ -1020,7 +1023,7 @@ public class PipelineActionsHandler {
     }
 
 
-    //////////////////// HELPERS OF COMPUTEMASKS ////////////////////////
+    /// ///////////////// HELPERS OF COMPUTEMASKS ////////////////////////
 
     public static ImagePlus computeMire(ImagePlus imgIn) {
         ImagePlus img = new Duplicator().run(imgIn, 1, 1, 1, 1, 1, 1);
@@ -1274,8 +1277,8 @@ public class PipelineActionsHandler {
         return img6;
     }
 
-    //////////////////// HELPERS OF SPACETIMEMEANSHIFTSEGMENTATION
-    //////////////////// ////////////////////////
+    /// ///////////////// HELPERS OF SPACETIMEMEANSHIFTSEGMENTATION
+    /// ///////////////// ////////////////////////
     public static ImagePlus projectTimeLapseSequenceInColorspaceCombined(ImagePlus imgSeq, ImagePlus interestMask1,
                                                                          ImagePlus interestMaskN,
                                                                          ImagePlus maskOfLeaves, int thresholdRupture,

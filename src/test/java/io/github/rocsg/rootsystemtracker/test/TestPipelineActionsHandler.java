@@ -3,7 +3,6 @@ package io.github.rocsg.rootsystemtracker.test;
 import io.github.rocsg.rstplugin.PipelineActionsHandler;
 import io.github.rocsg.rstplugin.PipelineParamHandler;
 import org.junit.Test;
-import org.itk.simple.SimpleITK;
 
 import java.io.File;
 
@@ -41,7 +40,6 @@ public class TestPipelineActionsHandler {
         // Check if the method returned true
         assertTrue(result);
     }
-
 
 
     @Test
@@ -174,11 +172,11 @@ class loadLib {
         System.loadLibrary("SimpleITK");
     }
 
-    native void cfun();
-
     public static void main(String[] args) {
         loadLib l = new loadLib();
 
         l.cfun();
     }
+
+    native void cfun();
 }

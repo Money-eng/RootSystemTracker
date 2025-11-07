@@ -30,9 +30,10 @@ import java.util.Collections;
 
 public class QRcodeReader {
 
-    /** I run some tests about sensitivity of this reader
-     It seems to be robust to pixel size (I handled 4 fold subsampling)
-     It seems to be not robust to relative size of QR // image, especially if other structures come there
+    /**
+     * I run some tests about sensitivity of this reader
+     * It seems to be robust to pixel size (I handled 4 fold subsampling)
+     * It seems to be not robust to relative size of QR // image, especially if other structures come there
      */
 
 

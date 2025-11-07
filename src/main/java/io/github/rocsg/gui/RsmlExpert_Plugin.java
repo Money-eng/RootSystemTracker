@@ -1616,46 +1616,6 @@ public class RsmlExpert_Plugin extends PlugInFrame implements KeyListener, Actio
         return infos;
     }
 
-    private Node getNodeStructure(RootModel rm, TreeMap<Double, List<Point3d>> pointsByTime, Map<Double, List<Boolean>> extremityFirst, Map<Double, List<Boolean>> extremityLast, List<Node> recordedNodes, Node nPar) {
-        for (Map.Entry<Double, List<Point3d>> entry : pointsByTime.entrySet()) {
-
-            for (Point3d pt : entry.getValue()) {
-
-                if ((nPar != null) && (nPar.x == (float) pt.x) && (nPar.y == (float) pt.y) && (nPar.birthTime == (float) pt.z)) {
-                    continue;
-                }
-
-                Node nn = new Node((float) pt.x, (float) pt.y, nPar, true);
-
-                nn.parent = nPar;
-                // Avoid repeating the same node
-                if (recordedNodes.contains(nn))
-                    continue;
-
-                // If the current point is an extremity, set its birth time and birth time in the past hours
-                if (extremityLast.get(entry.getKey()).get(entry.getValue().indexOf(pt))) {
-                    nn.birthTime = (float) pt.z + (float) 0.0;
-                    nn.birthTimeHours = (float) rm.hoursCorrespondingToTimePoints[(int) pt.z];
-                } else if (extremityFirst.get(entry.getKey()).get(entry.getValue().indexOf(pt))) {
-                    nn.birthTime = (float) pt.z;
-                    nn.birthTimeHours = (float) rm.hoursCorrespondingToTimePoints[(int) pt.z];
-                } else {
-                    // If the current point is not an extremity, calculate its birth time and birth time in hours
-                    nn.birthTime = (float) (pt.z + 0.5);
-                    nn.birthTimeHours =
-                            (float) (0.5 * rm.hoursCorrespondingToTimePoints[(int) pt.z] + 0.5 * nPar.birthTime);
-                }
-                nPar.child = nn;
-
-                // Set the current node as the parent for the next iteration
-                nPar = nn;
-
-                recordedNodes.add(nn);
-            }
-        }
-        return nPar;
-    }
-
     /**
      * Inform about point in model.
      *

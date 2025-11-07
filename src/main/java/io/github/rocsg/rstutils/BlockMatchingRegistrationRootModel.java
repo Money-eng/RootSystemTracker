@@ -11,7 +11,9 @@ import io.github.rocsg.fijiyama.common.VitiDialogs;
 import io.github.rocsg.fijiyama.common.VitimageUtils;
 import io.github.rocsg.fijiyama.fijiyamaplugin.RegistrationAction;
 import io.github.rocsg.fijiyama.registration.*;
-import io.github.rocsg.rsml.RootModel;
+import io.github.rocsg.rsml.RSML2DplusT.Node;
+import io.github.rocsg.rsml.RSML2DplusT.Root;
+import io.github.rocsg.rsml.RSML2DplusT.RootModel;
 import math3d.Point3d;
 import org.itk.simple.DisplacementFieldTransform;
 import org.itk.simple.Image;
@@ -245,7 +247,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
      */
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
-        String dir = "D:\\loaiu\\MAM5\\Stage\\data\\Test\\Output\\machin\\testBM\\";
+        String dir = "/home/loai/Images/DataTest/230629PN010/";
         String img = "22_registered_stack.tif";
 
         setupAndRunRsmlBlockMatchingRegistration(dir + img, true, true);
@@ -442,8 +444,8 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         }
     }
 
-    public static RootModel setupAndRunRsmlBlockMatchingRegistration(RootModel rootModel, ImagePlus imageRef, boolean display) {
-        /*ImagePlus imgRef = imageRef;
+    public RootModel setupAndRunRsmlBlockMatchingRegistration(RootModel rootModel, ImagePlus imageRef, boolean display) {
+        ImagePlus imgRef = imageRef;
         imgRef = VitimageUtils.resize(imgRef, imgRef.getWidth(), imgRef.getHeight(), imgRef.getStackSize());
         // the number of blocks will be the number of blocks of an image of size determined by the boundaries of the rootmodel
 
@@ -492,7 +494,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         BlockMatchingRegistration br = BlockMatchingRegistration.setupBlockMatchingRegistration(imgRef, imgMov, regAct);
         BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(br, rootModel);
 
-        boolean display = true;
+        display = true;
         boolean multiRsml = false;
         if (!display) bm.imageJOutputActivated = false;
         //bm.waitBeforeStart=false;
@@ -516,33 +518,33 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
         // inverse the linear transform
         linearTransform = ItkTransform.estimateBestTranslation3D(newPos, oldPos);
         rt.applyTransformToGeometry(linearTransform);
-        return rt;*/
-
-        System.out.println("imgRef = " + imageRef + " width=" + imageRef.getWidth() + " height=" + imageRef.getHeight());
-        rootModel.refineDescription(10);
-        rootModel.attachLatToPrime();
-        //ImagePlus imgMov = multiPlongement(imageRef, rootModel, false);
-        ImagePlus imgMov = plongement(imageRef, rootModel, false); // TODO Faire attention à la présence de RSML
-        RegistrationAction regAct = RegistrationAction.defineSettingsForRSML(imageRef);
-        //regAct.typeAutoDisplay = 2;
-        BlockMatchingRegistration br = BlockMatchingRegistration.setupBlockMatchingRegistration(imageRef, imgMov, regAct);
-        BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(br, rootModel);
-
-
-        if (!display) bm.imageJOutputActivated = false;
-        //bm.waitBeforeStart=false;
-        // bm.updateViews(0, 0, 0, "Start");
-        bm.displayRegistration = display ? 2 : 0;
-        bm.minBlockVariance = 0.05;
-        bm.minBlockScore = 0.01;
-        bm.adjustZoomFactor(512.0 / imageRef.getWidth());
-        //bm.defaultCoreNumber = multiRsml ? 1 : VitimageUtils.getNbCores() / 2;
-        ItkTransform itkTransform = bm.runBlockMatching(null, false);
-
-        // save the transformation
-        bm.closeLastImages();
-        bm.freeMemory();
-        return bm.rM;
+        return rt;
+//
+//        System.out.println("imgRef = " + imageRef + " width=" + imageRef.getWidth() + " height=" + imageRef.getHeight());
+//        rootModel.refineDescription(10);
+//        rootModel.attachLatToPrime();
+//        //ImagePlus imgMov = multiPlongement(imageRef, rootModel, false);
+//        ImagePlus imgMov = plongement(imageRef, rootModel, false); // TODO Faire attention à la présence de RSML
+//        RegistrationAction regAct = RegistrationAction.defineSettingsForRSML(imageRef);
+//        //regAct.typeAutoDisplay = 2;
+//        BlockMatchingRegistration br = BlockMatchingRegistration.setupBlockMatchingRegistration(imageRef, imgMov, regAct);
+//        BlockMatchingRegistrationRootModel bm = new BlockMatchingRegistrationRootModel(br, rootModel);
+//
+//
+//        if (!display) bm.imageJOutputActivated = false;
+//        //bm.waitBeforeStart=false;
+//        // bm.updateViews(0, 0, 0, "Start");
+//        bm.displayRegistration = display ? 2 : 0;
+//        bm.minBlockVariance = 0.05;
+//        bm.minBlockScore = 0.01;
+//        bm.adjustZoomFactor(512.0 / imageRef.getWidth());
+//        //bm.defaultCoreNumber = multiRsml ? 1 : VitimageUtils.getNbCores() / 2;
+//        ItkTransform itkTransform = bm.runBlockMatching(null, false);
+//
+//        // save the transformation
+//        bm.closeLastImages();
+//        bm.freeMemory();
+//        return bm.rM;
     }
 
     /**
@@ -766,7 +768,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
 
 
                 // les blocks ?
-                /*timesIter[lev][iter][2] = VitimageUtils.dou((System.currentTimeMillis() - t0) / 1000.0);
+                timesIter[lev][iter][2] = VitimageUtils.dou((System.currentTimeMillis() - t0) / 1000.0);
                 // Pre-calculate offsets to avoid redundant calculations
                 int xOffset = this.neighbourhoodSizeX * strideMoving;
                 int yOffset = this.neighbourhoodSizeY * strideMoving;
@@ -794,7 +796,7 @@ public class BlockMatchingRegistrationRootModel extends BlockMatchingRegistratio
                         }
                     }
                 }
-                timesIter[lev][iter][3] = VitimageUtils.dou((System.currentTimeMillis() - t0) / 1000.0);*/
+                timesIter[lev][iter][3] = VitimageUtils.dou((System.currentTimeMillis() - t0) / 1000.0);
                 // Record the time before the block processing
                 timesIter[lev][iter][2] = VitimageUtils.dou((System.currentTimeMillis() - t0) / 1000.0);
 

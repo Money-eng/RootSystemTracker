@@ -39,13 +39,13 @@ public class TestGaps {
 
         //Establish pair voted correspondences as an indices vector
         ArrayList<int[]> correspondencesIndices = getSmartCorrespondences(img, candidatePointTop, candidatePointBot,
-				radiusX, radiusY, minRsquared, minVariance, radiusSearch, sigma);
+                radiusX, radiusY, minRsquared, minVariance, radiusSearch, sigma);
         System.out.println("Smart corr have " + correspondencesIndices.size());
 
 
         //Interpolate the corresponding euclidean vectors to discrete vector field
         ImagePlus[] field = getTheDeformationField(img, correspondencesIndices, candidatePointTop, candidatePointBot,
-				sigma);
+                sigma);
 
         //Use it to interpolate the image
         ImagePlus result = rewriteUponGap(img, imgMask, field, candidatePointTop, radiusX, radiusY);
@@ -73,7 +73,7 @@ public class TestGaps {
 
 
     public static ImagePlus rewriteUponGap(ImagePlus img, ImagePlus imgMask, ImagePlus[] field,
-										   ArrayList<Point2d> candidatePointTop, int radiusX, int radiusY) {
+                                           ArrayList<Point2d> candidatePointTop, int radiusX, int radiusY) {
         ImagePlus result = img.duplicate();
         ImagePlus fieldX = field[0];
         ImagePlus fieldY = field[1];
@@ -166,8 +166,8 @@ public class TestGaps {
     }
 
     public static ImagePlus[] getTheDeformationField(ImagePlus img, ArrayList<int[]> correspondencesIndices,
-													 ArrayList<Point2d> candidatePointTop,
-													 ArrayList<Point2d> candidatePointBot, double sigma) {
+                                                     ArrayList<Point2d> candidatePointTop,
+                                                     ArrayList<Point2d> candidatePointBot, double sigma) {
         int yMin = 10000, yMax = 0;
         int N = correspondencesIndices.size();
         for (int i = 0; i < N; i++) {
@@ -193,7 +193,7 @@ public class TestGaps {
             System.out.println("New correspondence : " + correspondancePoints[0][i] + ", " + correspondancePoints[1][i]);
         }
         Image defField = ItkTransform.computeDenseFieldFromSparseCorrespondancePoints(correspondancePoints, imgRef,
-				sigma, false);
+                sigma, false);
         ImagePlus[] field = ItkImagePlusInterface.convertDisplacementFieldToImagePlusArrayAndNorm(defField);
         field[0] = VitimageUtils.uncropImageFloat(field[0], 0, yMin, 0, img.getWidth(), img.getHeight(), 1);
         field[1] = VitimageUtils.uncropImageFloat(field[1], 0, yMin, 0, img.getWidth(), img.getHeight(), 1);
@@ -201,9 +201,9 @@ public class TestGaps {
     }
 
     public static ArrayList<int[]> getSmartCorrespondences(ImagePlus img, ArrayList<Point2d> arTop,
-														   ArrayList<Point2d> arBot, int radiusX, int radiusY,
-														   double minRsquared, double minVariance, double radiusSearch
-			, double sigma) {
+                                                           ArrayList<Point2d> arBot, int radiusX, int radiusY,
+                                                           double minRsquared, double minVariance, double radiusSearch
+            , double sigma) {
         int N = arTop.size();
         int Z = img.getNSlices();
         ImagePlus imgSlice = new Duplicator().run(img, 1, 1, img.getNSlices(), img.getNSlices(), 1, 1);
@@ -220,9 +220,9 @@ public class TestGaps {
 //			blocksTop[i]=VitimageUtils.valuesOfBlockDoubleSlice(imgSlice,arTop.get(i).x-radiusX,arTop.get(i)
 //			.y-radiusY/*,Z-1*/,arTop.get(i).x+radiusX,arTop.get(i).y+radiusY/*,Z-1*/);
             blocksBot[i] = VitimageUtils.valuesOfBlockDouble(img, arBot.get(i).x - radiusX, arBot.get(i).y - radiusY,
-					Z - 1, arBot.get(i).x + radiusX, arBot.get(i).y + radiusY, Z - 1);
+                    Z - 1, arBot.get(i).x + radiusX, arBot.get(i).y + radiusY, Z - 1);
             blocksTop[i] = VitimageUtils.valuesOfBlockDouble(img, arTop.get(i).x - radiusX, arTop.get(i).y - radiusY,
-					Z - 1, arTop.get(i).x + radiusX, arTop.get(i).y + radiusY, Z - 1);
+                    Z - 1, arTop.get(i).x + radiusX, arTop.get(i).y + radiusY, Z - 1);
 /*			System.out.println(blocksBot[i][0]);
 			System.out.println(VitimageUtils.statistics1D(blocksBot[i])[1]);
 			VitimageUtils.waitFor(100000);*/
@@ -236,7 +236,7 @@ public class TestGaps {
                 if (score > maxCorr) {
                     maxCorr = score;
                     corr[i] = new double[]{ind, maxCorr, VitimageUtils.statistics1D(blocksTop[i])[1],
-							VitimageUtils.statistics1D(blocksBot[i])[1]};
+                            VitimageUtils.statistics1D(blocksBot[i])[1]};
                 }
             }
         }
@@ -304,7 +304,7 @@ public class TestGaps {
         // use formula for calculating correlation
         // coefficient.
         double result =
-				(n * sum_XY - sum_X * sum_Y) / (Math.sqrt((n * squareSum_X - sum_X * sum_X) * (n * squareSum_Y - sum_Y * sum_Y)));
+                (n * sum_XY - sum_X * sum_Y) / (Math.sqrt((n * squareSum_X - sum_X * sum_X) * (n * squareSum_Y - sum_Y * sum_Y)));
         if (Math.abs((n * squareSum_X - sum_X * sum_X)) < 10E-10) return 0; //cas Infinity
         if (Math.abs((n * squareSum_Y - sum_Y * sum_Y)) < 10E-10) return 0; //cas Infinity
         return result;
@@ -312,7 +312,7 @@ public class TestGaps {
 
 
     public static ArrayList<int[]> getDumbCorrespondences(ImagePlus img, ArrayList<Point2d> arTop,
-														  ArrayList<Point2d> arBot) {
+                                                          ArrayList<Point2d> arBot) {
         int N = arTop.size();
         ArrayList<int[]> ret = new ArrayList<int[]>();
         for (int i = 0; i < N; i++) ret.add(new int[]{i, i});

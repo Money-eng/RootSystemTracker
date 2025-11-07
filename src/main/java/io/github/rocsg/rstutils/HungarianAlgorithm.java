@@ -1,12 +1,8 @@
 package io.github.rocsg.rstutils;
 
 import io.github.rocsg.fijiyama.registration.TransformUtils;
-import io.github.rocsg.rsmlparser.IRootParser;
 
-import java.time.LocalDateTime;
-import java.util.*;
-
-import static io.github.rocsg.rsmlparser.RSML2D.Rsml2DParser.*;
+import java.util.Arrays;
 
 /* Copyright (c) 2012 Kevin L. Stern
  *
@@ -64,6 +60,7 @@ public class HungarianAlgorithm {
     private final int[] matchJobByWorker, matchWorkerByJob;
     private final int[] parentWorkerByCommittedJob;
     private final boolean[] committedWorkers;
+
     /**
      * Construct an instance of the algorithm.
      *
