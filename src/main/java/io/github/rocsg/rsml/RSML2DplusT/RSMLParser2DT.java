@@ -1,9 +1,7 @@
-package io.github.rocsg.rsmlparser.RSML2DplusT;
+package io.github.rocsg.rsml.RSML2DplusT;
 
-import io.github.rocsg.rsml.Root;
-import io.github.rocsg.rsml.RootModel;
-import io.github.rocsg.rsmlparser.Metadata;
-import io.github.rocsg.rsmlparser.Plant;
+import io.github.rocsg.rsml.Metadata;
+import io.github.rocsg.rsml.Plant;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -26,9 +24,9 @@ public class RSMLParser2DT {
      * @param args Command line arguments.
      */
     public static void main(String[] args) {
-        String rsmlFile = "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\61_graph_expertized.rsml";
+        String rsmlFile = "/home/loai/Images/DataTest/230629PN016/61_graph_expertized.rsml";
         RootModel rm = rootModelReadFromRsml(rsmlFile);
-        RSMLWriter2DT.writeRSML(rm, "D:\\loaiu\\MAM5\\Stage\\data\\UC1\\230629PN033\\71_graph_expertized-Rewritten.rsml");
+        RSMLWriter2DT.writeRSML(rm, "/home/loai/Images/DataTest/230629PN016/71_graph_expertized-Rewritten.rsml");
         System.out.println("Done");
     }
 
@@ -49,9 +47,9 @@ public class RSMLParser2DT {
 
             Element rootElement = doc.getDocumentElement();
             NodeList sceneNodes = rootElement.getElementsByTagName("scene");
+            RootModel rootModel = new RootModel();
             for (int i = 0; i < sceneNodes.getLength(); i++) {
                 Element sceneElement = (Element) sceneNodes.item(i);
-                RootModel rootModel = new RootModel();
                 parseScene(sceneElement, rootModel);
                 parseMetadata(rootElement, rootModel);
                 rootModel.standardOrderingOfRoots();
@@ -69,7 +67,7 @@ public class RSMLParser2DT {
      * Parses the metadata from the RSML file and populates the RootModel object.
      *
      * @param rootElement The root element of the RSML document.
-     * @param rm The RootModel object to populate.
+     * @param rm          The RootModel object to populate.
      */
     private static void parseMetadata(Element rootElement, RootModel rm) {
         Element metadata = (Element) rootElement.getElementsByTagName("metadata").item(0);
@@ -100,9 +98,10 @@ public class RSMLParser2DT {
 
     /**
      * Parses the scene element from the RSML file and populates the RootModel object.
+     * Find all plant elements in the scene and for each plant, extract its roots (primaries) and their geometries recursively.
      *
      * @param sceneElement The scene element to parse.
-     * @param rootModel The RootModel object to populate.
+     * @param rootModel    The RootModel object to populate.
      */
     private static void parseScene(Element sceneElement, RootModel rootModel) {
         NodeList plantNodes = sceneElement.getElementsByTagName("plant");
@@ -126,26 +125,27 @@ public class RSMLParser2DT {
     /**
      * Parses the root element from the RSML file and populates the RootModel object.
      *
+     *
      * @param rootElement The root element to parse.
-     * @param parentRoot The parent root, if any.
-     * @param rm The RootModel object to populate.
-     * @param order The order of the root.
-     * @param rootsLabel A set of root labels.
+     * @param parentRoot  The parent root, if any.
+     * @param rm          The RootModel object to populate.
+     * @param order       The order of the root.
+     * @param rootsLabel  A set of root labels.
      */
     private static void parseRoot(Element rootElement, Root parentRoot, RootModel rm, int order, Set<String> rootsLabel) {
         int ord = rootElement.getAttribute("ID").split("\\.").length - 1;
         if (ord != order) return;
         Root root = new Root(null, rm, rootElement.getAttribute("label"), order);
         parseRootGeometry(rootElement, root);
-        root.computeDistances();
-        if (order > 1) {
+        root.computeDistances(); // Associate to each node its distance from the root origin (local only)
+        if (order > 1) { // assuming primary roots have order 1
             root.attachParent(parentRoot);
             parentRoot.attachChild(root);
         }
         rootsLabel.add(root.rootID);
         NodeList childRootNodes = rootElement.getElementsByTagName("root");
         rm.rootList.add(root);
-        for (int i = 0; i < childRootNodes.getLength(); i++) {
+        for (int i = 0; i < childRootNodes.getLength(); i++) { // loop over child roots
             Element childRootElement = (Element) childRootNodes.item(i);
             parseRoot(childRootElement, root, rm, order + 1, rootsLabel);
         }
@@ -155,7 +155,7 @@ public class RSMLParser2DT {
      * Parses the geometry of the root element and populates the Root object.
      *
      * @param rootElement The root element to parse.
-     * @param root The Root object to populate.
+     * @param root        The Root object to populate.
      */
     private static void parseRootGeometry(Element rootElement, Root root) {
         Element geometryElement = (Element) rootElement.getElementsByTagName("geometry").item(0);
